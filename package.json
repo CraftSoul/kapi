@@ -1,11 +1,16 @@
 {
-  "name": "karsenal-deck-image-api",
+  "name": "kards-deck-image-api",
   "version": "1.0.0",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "npx puppeteer browsers install chrome || npx puppeteer install"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "puppeteer": "^21.0.0"
+    "puppeteer": "^21.0.0",
+    "glob": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
