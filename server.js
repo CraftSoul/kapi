@@ -4,83 +4,86 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(__dirname));
 
 let browser = null;
 
-// 下载静态 Chrome
-async function downloadStaticChrome() {
-    const chromeDir = path.join(__dirname, '.chrome');
-    const chromePath = path.join(chromeDir, 'chrome-linux', 'chrome');
-    
-    if (fs.existsSync(chromePath)) {
-        console.log('✅ 静态 Chrome 已存在');
-        return chromePath;
+// 核心函数：强制确保浏览器已下载
+async function ensureBrowserInstalled() {
+    const cacheDir = path.join(__dirname, '.cache', 'puppeteer');
+    console.log(`📁 缓存目录: ${cacheDir}`);
+
+    // 1. 检查是否已存在
+    const possiblePaths = [
+        path.join(cacheDir, 'chrome', 'linux-121.0.6167.85', 'chrome-linux64', 'chrome'),
+        path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux64', 'chrome'),
+        path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux', 'chrome'),
+    ];
+
+    for (const p of possiblePaths) {
+        try {
+            // 处理通配符
+            if (p.includes('*')) {
+                const glob = await import('glob');
+                const matches = await glob.glob(p);
+                if (matches && matches.length > 0) {
+                    const found = matches[0];
+                    console.log(`✅ 找到浏览器: ${found}`);
+                    // 设置环境变量，让 puppeteer.launch 能直接使用
+                    process.env.PUPPETEER_EXECUTABLE_PATH = found;
+                    return;
+                }
+            } else {
+                if (fs.existsSync(p)) {
+                    console.log(`✅ 找到浏览器: ${p}`);
+                    process.env.PUPPETEER_EXECUTABLE_PATH = p;
+                    return;
+                }
+            }
+        } catch (e) { /* 忽略查找错误 */ }
     }
-    
-    console.log('📥 下载静态 Chrome...');
-    fs.mkdirSync(chromeDir, { recursive: true });
-    
-    // 使用 Chromium 静态构建（包含所有依赖）
-    const url = 'https://github.com/ungoogled-software/ungoogled-chromium-binaries/releases/download/121.0.6167.85-1/ungoogled-chromium_121.0.6167.85-1_linux.tar.xz';
-    
-    return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(path.join(chromeDir, 'chrome.tar.xz'));
-        https.get(url, (response) => {
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close();
-                console.log('📦 解压 Chrome...');
-                execSync(`tar -xf ${path.join(chromeDir, 'chrome.tar.xz')} -C ${chromeDir}`, { stdio: 'inherit' });
-                fs.unlinkSync(path.join(chromeDir, 'chrome.tar.xz'));
-                console.log('✅ 静态 Chrome 准备完成');
-                resolve(chromePath);
-            });
-        }).on('error', reject);
-    });
+
+    // 2. 如果没找到，强制下载
+    console.log('⚠️ 未找到浏览器，开始下载...');
+    try {
+        // 明确设置缓存目录并执行安装
+        execSync('npx puppeteer browsers install chrome', {
+            stdio: 'inherit',
+            cwd: __dirname,
+            env: { ...process.env, PUPPETEER_CACHE_DIR: cacheDir }
+        });
+        console.log('✅ 下载命令执行完成');
+
+        // 下载后再次查找（通常在 linux-* 目录下）
+        const newSearchPath = path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux64', 'chrome');
+        const glob = await import('glob');
+        const matches = await glob.glob(newSearchPath);
+        if (matches && matches.length > 0) {
+            const found = matches[0];
+            console.log(`✅ 下载后找到浏览器: ${found}`);
+            process.env.PUPPETEER_EXECUTABLE_PATH = found;
+            return;
+        }
+        throw new Error('下载后仍未找到浏览器可执行文件');
+    } catch (error) {
+        console.error('❌ 浏览器下载或查找失败:', error.message);
+        throw new Error(`无法准备浏览器环境: ${error.message}`);
+    }
 }
 
 async function getBrowser() {
     if (!browser) {
-        console.log('🚀 准备浏览器...');
-        
-        // 先尝试使用 Nix 安装的 Chromium
-        const nixPaths = [
-            '/nix/store/*-chromium/bin/chromium',
-            '/nix/store/*-chromium/bin/chromium-browser'
-        ];
-        
-        let executablePath = null;
-        
-        // 检查 Nix 路径
-        try {
-            const glob = await import('glob');
-            for (const pattern of nixPaths) {
-                const matches = await glob.glob(pattern);
-                if (matches && matches.length > 0) {
-                    executablePath = matches[0];
-                    console.log(`✅ 找到 Nix Chromium: ${executablePath}`);
-                    break;
-                }
-            }
-        } catch (e) {}
-        
-        // 如果 Nix 没有，使用静态 Chrome
-        if (!executablePath) {
-            executablePath = await downloadStaticChrome();
-        }
-        
-        console.log(`🚀 启动 Puppeteer (${executablePath})...`);
+        console.log('🚀 准备浏览器环境...');
+        await ensureBrowserInstalled(); // 确保下载
+
+        console.log('🚀 启动 Puppeteer...');
         try {
             browser = await puppeteer.launch({
-                executablePath: executablePath,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -90,6 +93,7 @@ async function getBrowser() {
                 ],
                 headless: 'new',
                 timeout: 60000
+                // 注意：不传 executablePath，让 puppeteer 从环境变量或缓存中读取
             });
             console.log('✅ 浏览器启动成功');
         } catch (error) {
