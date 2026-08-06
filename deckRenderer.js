@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const FONT_FAMILY = '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", "WenQuanYi Micro Hei", "Segoe UI", sans-serif';
 
 // ---------- 常量定义 ----------
 const VERSION = 52;
@@ -320,11 +321,11 @@ async function drawStatsCard(ctx, x, y, w, h, radius, customTitle, mainNation, a
   const totalCards = Array.from(deckMap.values()).reduce((s, e) => s + e.count, 0);
 
   ctx.fillStyle = "#ffefbf";
-  ctx.font = `bold ${Math.floor(h * 0.08)}px "Segoe UI", sans-serif`;
+  ctx.font = `bold ${Math.floor(h * 0.08)}px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.fillText(title, x + w / 2, y + h * 0.10);
 
-  ctx.font = `${Math.floor(h * 0.05)}px "Segoe UI", sans-serif`;
+  ctx.font = `${Math.floor(h * 0.05)}px ${FONT_FAMILY}`;
   ctx.textAlign = "left";
   const startY = y + h * 0.22;
   const lineH = h * 0.075;
@@ -377,7 +378,7 @@ async function drawStatsCard(ctx, x, y, w, h, radius, customTitle, mainNation, a
   ctx.fillText(`精英: ${rarityCounts.Elite}`, col2X, rarityY + lineH * 3 + 2);
 
   ctx.fillStyle = "#ffefb9";
-  ctx.font = `${Math.floor(h * 0.045)}px "Segoe UI", sans-serif`;
+  ctx.font = `${Math.floor(h * 0.045)}px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.fillText(`平均费用: ${avgCost.toFixed(2)}`, x + w / 2, rarityY + lineH * 4 + 10);
 
@@ -424,17 +425,17 @@ async function drawStatsCard(ctx, x, y, w, h, radius, customTitle, mainNation, a
     }
 
     ctx.fillStyle = "#f5eaca";
-    ctx.font = `${Math.floor(h * 0.035)}px "Segoe UI", sans-serif`;
+    ctx.font = `${Math.floor(h * 0.035)}px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
     ctx.fillText(i === 7 ? "7K+" : `${i}K`, bx + (barWidth - barGap) / 2, barAreaY + barMaxHeight + h * 0.045);
 
     if (total > 0) {
       ctx.fillStyle = "#ffefb9";
-      ctx.font = `${Math.floor(h * 0.03)}px "Segoe UI", sans-serif`;
+      ctx.font = `${Math.floor(h * 0.03)}px ${FONT_FAMILY}`;
       ctx.fillText(total, bx + (barWidth - barGap) / 2, barAreaY + barMaxHeight - unitH - orderH - counterH - h * 0.025);
     } else {
       ctx.fillStyle = "#ffefb9";
-      ctx.font = `${Math.floor(h * 0.03)}px "Segoe UI", sans-serif`;
+      ctx.font = `${Math.floor(h * 0.03)}px ${FONT_FAMILY}`;
       ctx.fillText("0", bx + (barWidth - barGap) / 2, barAreaY + barMaxHeight - h * 0.025);
     }
   }
@@ -464,7 +465,7 @@ async function drawQrCard(ctx, x, y, w, h, radius, qrCodeData, customTitle) {
 
   const title = customTitle || "卡组二维码";
   ctx.fillStyle = "#ffefbf";
-  ctx.font = `bold ${Math.floor(h * 0.08)}px "Segoe UI", sans-serif`;
+  ctx.font = `bold ${Math.floor(h * 0.08)}px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.fillText(title, x + w / 2, y + h * 0.10);
 
@@ -605,7 +606,7 @@ async function generateDeckImageWithOptions(
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 4;
-    ctx.font = 'bold 28px "Segoe UI", sans-serif';
+    ctx.font = `bold 28px ${FONT_FAMILY}`;
     const metrics = ctx.measureText(text);
     const textWidth = metrics.width;
     const pad = 12;
@@ -824,7 +825,7 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
   const avgCost = totalCardsCount > 0 ? (totalCostSum / totalCardsCount) : 0;
 
   ctx.fillStyle = "#ffefbf";
-  ctx.font = 'bold 28px "Segoe UI", sans-serif';
+  ctx.font = `bold 28px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.fillText("卡组统计", canvas.width/2, 50);
 
@@ -834,7 +835,7 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
   const allyIcon = await loadFactionIcon(allyNation);
 
   // 顶部信息行
-  ctx.font = '18px "Segoe UI", sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.textAlign = "left";
 
   let xPos = 40;
@@ -875,7 +876,7 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
   ctx.fillText(`精英: ${rarityCounts.Elite}`, 780, startY);
 
   ctx.fillStyle = "#ffefb9";
-  ctx.font = '18px "Segoe UI", sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.fillText(`平均费用: ${avgCost.toFixed(2)}`, canvas.width/2, 145);
 
@@ -922,18 +923,18 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
     }
 
     ctx.fillStyle = "#f5eaca";
-    ctx.font = '16px "Segoe UI", sans-serif';
+    ctx.font = `16px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
     const labelY = barAreaY + barAreaH + 25;
     ctx.fillText(i === 7 ? "7K+" : `${i}K`, bx + (barWidth - barGap) / 2, labelY);
 
     if (total > 0) {
       ctx.fillStyle = "#ffefb9";
-      ctx.font = '14px "Segoe UI", sans-serif';
+      ctx.font = `14px ${FONT_FAMILY}`;
       ctx.fillText(total, bx + (barWidth - barGap) / 2, barAreaY + barAreaH - unitH - orderH - counterH - 5);
     } else {
       ctx.fillStyle = "#ffefb9";
-      ctx.font = '14px "Segoe UI", sans-serif';
+      ctx.font = `14px ${FONT_FAMILY}`;
       ctx.fillText("0", bx + (barWidth - barGap) / 2, barAreaY + barAreaH - 5);
     }
   }
