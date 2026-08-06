@@ -16,13 +16,17 @@ let browser = null;
 async function getBrowser() {
     if (!browser) {
         console.log('启动 Puppeteer...');
+        // const config = await import('./puppeteer.config.cjs');
+        // const cacheDir = config.default.cacheDirectory;
+        
         browser = await puppeteer.launch({
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage'
             ],
-            headless: true
+            headless: true,
+            // 不强制指定 executablePath，让 puppeteer 根据配置和缓存自动寻找
         });
         console.log('✅ 浏览器启动成功');
     }
