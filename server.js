@@ -3,11 +3,11 @@ import { generateDeckImage, preloadIcons } from './deckRenderer.js';
 import { registerFont } from 'canvas';
 import path from 'path';
 
+// 注册字体
 try {
-  registerFont(path.join(__dirname, 'fonts', 'NotoSansSC-Regular.ttf'), { family: 'Noto Sans SC' });
-  registerFont(path.join(__dirname, 'fonts', 'NotoSansSC-Bold.ttf'), { family: 'Noto Sans SC', weight: 'bold' });
+  registerFont(path.join(__dirname, 'font.ttf'), { family: 'CustomFont' });
 } catch (e) {
-  console.warn('中文字体注册失败，将使用后备字体', e.message);
+  console.warn('字体注册失败:', e.message);
 }
 
 const app = express();

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const FONT_FAMILY = '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", "WenQuanYi Micro Hei", "Segoe UI", sans-serif';
+const FONT_FAMILY = '"CustomFont", "PingFang SC", "Microsoft YaHei", sans-serif';
 
 // ---------- 常量定义 ----------
 const VERSION = 52;
