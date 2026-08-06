@@ -25,7 +25,6 @@ async function getBrowser() {
                 '--disable-features=IsolateOrigins,site-per-process'
             ],
             headless: true
-            executablePath: puppeteer.executablePath()
         });
         console.log('✅ 浏览器启动成功');
     }
