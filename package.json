@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "apt-get update && apt-get install -y chromium && npx puppeteer browsers install chrome"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "puppeteer": "^21.0.0"
+    "puppeteer": "^21.0.0",
+    "glob": "^10.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
