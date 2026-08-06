@@ -50,7 +50,7 @@ async function loadFactionIcon(factionKey) {
 
   try {
     // 从本地加载 SVG
-    const iconPath = path.join(__dirname, 'icons', `${factionKey}.svg`);
+    const iconPath = path.join(__dirname, `${factionKey}.svg`);
     if (fs.existsSync(iconPath)) {
       const svgBuffer = fs.readFileSync(iconPath);
       const svgDataUrl = `data:image/svg+xml;base64,${svgBuffer.toString('base64')}`;
