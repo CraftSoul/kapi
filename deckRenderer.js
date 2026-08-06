@@ -509,6 +509,21 @@ async function drawQrCard(ctx, x, y, w, h, radius, qrCodeData, customTitle) {
   ctx.restore();
 }
 
+// ---------- 排序比较函数（与 builder.html 保持一致） ----------
+function compareCardsForDisplay(a, b, cardCostMap, cardStarMap) {
+  // 总部优先
+  if (a.card.isHeadquarter && !b.card.isHeadquarter) return -1;
+  if (!a.card.isHeadquarter && b.card.isHeadquarter) return 1;
+
+  // 按花费升序
+  const costA = cardCostMap.get(a.card.cardId) ?? a.card.cost;
+  const costB = cardCostMap.get(b.card.cardId) ?? b.card.cost;
+  if (costA !== costB) return costA - costB;
+
+  // 按 cardId 升序（与 builder.html 一致）
+  return a.card.cardId.localeCompare(b.card.cardId, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 // ---------- 主生成函数 ----------
 async function generateDeckImageWithOptions(
   cols,
@@ -533,12 +548,42 @@ async function generateDeckImageWithOptions(
   const validCards = cardsWithVersion.filter(item => item !== null);
   if (validCards.length === 0) throw new Error("没有有效卡片");
 
+  // ===== 排序：按花费 → cardId（与 builder.html 一致） =====
+  validCards.sort((a, b) => compareCardsForDisplay(a, b, cardCostMap, cardStarMap));
+
+  // ===== 折叠处理：折叠后的排序逻辑与 builder.html 保持一致 =====
+  let displayCards = validCards;
+  const cardCountMap = {};
+  for (const item of validCards) {
+    const key = item.card.cardId;
+    cardCountMap[key] = (cardCountMap[key] || 0) + 1;
+  }
+
+  if (foldEnabled) {
+    const uniqueMap = new Map();
+    for (const item of validCards) {
+      const key = item.card.cardId;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, { card: item.card, version: item.version, count: 1 });
+      } else {
+        uniqueMap.get(key).count++;
+      }
+    }
+    displayCards = Array.from(uniqueMap.values()).map(item => ({
+      card: item.card,
+      version: item.version,
+      count: item.count
+    }));
+    // 折叠后重新排序（与 builder.html 一致）
+    displayCards.sort((a, b) => compareCardsForDisplay(a, b, cardCostMap, cardStarMap));
+  }
+
   let extraCount = 0;
   if (addStatsCard) extraCount++;
   if (qrEnabled) extraCount++;
 
   const cardW = 500, cardH = 702, radius = 15;
-  const totalSlots = cardsWithVersion.length + extraCount;
+  const totalSlots = displayCards.length + extraCount;
   const rows = Math.ceil(totalSlots / cols);
   const canvas = createCanvas(
     cols * cardW + (cols - 1) * spacingX,
@@ -551,12 +596,9 @@ async function generateDeckImageWithOptions(
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  const cardCountMap = {};
-  for (const item of validCards) {
-    const key = item.card.cardId;
-    cardCountMap[key] = (cardCountMap[key] || 0) + 1;
-  }
+  // 用于折叠标记去重
   const drawnFoldSet = new Set();
+  const drawnStarSet = new Set();
 
   // 画标签（箭头）辅助函数
   const drawTagWithArrow = (text, x, y, color, bgColorTag = 'rgba(0,0,0,0.85)') => {
@@ -604,14 +646,14 @@ async function generateDeckImageWithOptions(
       const y = row * (cardH + spacingY);
 
       let item = null;
-      if (slotIndex < cardsWithVersion.length) {
-        item = cardsWithVersion[slotIndex];
-      } else if (addStatsCard && !statsCardPlaced && slotIndex === cardsWithVersion.length) {
+      if (slotIndex < displayCards.length) {
+        item = displayCards[slotIndex];
+      } else if (addStatsCard && !statsCardPlaced && slotIndex === displayCards.length) {
         statsCardPlaced = true;
         await drawStatsCard(ctx, x, y, cardW, cardH, radius, statsTitle, mainNation, allyNation, deckMap, cardCostMap);
         slotIndex++;
         continue;
-      } else if (qrEnabled && !qrCardPlaced && slotIndex === cardsWithVersion.length + (addStatsCard ? 1 : 0)) {
+      } else if (qrEnabled && !qrCardPlaced && slotIndex === displayCards.length + (addStatsCard ? 1 : 0)) {
         qrCardPlaced = true;
         const deckCode = exportDeckCodeFromMap(deckMap, mainNation, allyNation);
         if (deckCode) {
@@ -709,12 +751,13 @@ async function generateDeckImageWithOptions(
 
       // 星标
       if (cardStarMap && cardStarMap.has(card.cardId)) {
-        if (!foldEnabled || (foldEnabled && !drawnFoldSet.has(card.cardId))) {
+        if (!foldEnabled || (foldEnabled && !drawnStarSet.has(card.cardId))) {
           let offset = 0;
           if (foldEnabled && drawnFoldSet.has(card.cardId)) {
             offset = 64;
           }
           drawTagWithArrow('★', x, y + 99 + offset, '#ffd700');
+          if (foldEnabled) drawnStarSet.add(card.cardId);
         }
       }
 
