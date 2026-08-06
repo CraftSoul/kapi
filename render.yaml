@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: kards-deck-image-api
+    env: node
+    buildCommand: |
+      apt-get update && apt-get install -y libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev build-essential
+      npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.0.0
