@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from 'canvas';
+import { createCanvas, loadImage, registerFont } from 'canvas';
 import QRCode from 'qrcode';
 import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from './cardData.js';
 import fs from 'fs';
@@ -7,7 +7,21 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const FONT_FAMILY = '"CustomFont", "PingFang SC", "Microsoft YaHei", sans-serif';
+
+// 注册字体
+try {
+  const fontPath = path.join(__dirname, 'font.ttf');
+  if (fs.existsSync(fontPath)) {
+    registerFont(fontPath, { family: 'CustomFont' });
+    console.log('✅ 字体注册成功');
+  } else {
+    console.warn('⚠️ font.ttf 不存在，路径:', fontPath);
+  }
+} catch (e) {
+  console.warn('字体注册失败:', e.message);
+}
+
+const FONT_FAMILY = '"CustomFont", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
 // ---------- 常量定义 ----------
 const VERSION = 52;
@@ -35,23 +49,18 @@ async function loadFactionIcon(factionKey) {
   }
 
   try {
-    // 尝试从本地加载 SVG 文件
+    // 从本地加载 SVG
     const iconPath = path.join(__dirname, 'icons', `${factionKey}.svg`);
     if (fs.existsSync(iconPath)) {
       const svgBuffer = fs.readFileSync(iconPath);
-      // 将 SVG 转换为 DataURL 以便 loadImage 加载
       const svgDataUrl = `data:image/svg+xml;base64,${svgBuffer.toString('base64')}`;
       const img = await loadImage(svgDataUrl);
       factionIconCache.set(factionKey, img);
       return img;
     }
-
-    // 如果本地没有，尝试从网络加载（备选）
-    // 注意：Render 环境可能需要配置代理或直接访问
-    const url = `https://raw.githubusercontent.com/kards-deck-builder/kards-deck-builder/main/public/icons/${factionKey}.svg`;
-    const img = await loadImage(url);
-    factionIconCache.set(factionKey, img);
-    return img;
+    // 本地不存在则跳过（不再请求网络）
+    console.warn(`⚠️ 阵营图标 ${factionKey} 本地不存在，跳过`);
+    return null;
   } catch (e) {
     console.warn(`无法加载阵营图标 ${factionKey}:`, e.message);
     return null;
