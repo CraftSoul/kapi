@@ -7,83 +7,100 @@ import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(__dirname));
 
 let browser = null;
 
-// 核心函数：强制确保浏览器已下载
-async function ensureBrowserInstalled() {
-    const cacheDir = path.join(__dirname, '.cache', 'puppeteer');
-    console.log(`📁 缓存目录: ${cacheDir}`);
-
-    // 1. 检查是否已存在
+// 获取 Puppeteer 自带 Chromium 的路径
+function getPuppeteerChromiumPath() {
+    // Puppeteer 21.x 的默认安装路径
     const possiblePaths = [
-        path.join(cacheDir, 'chrome', 'linux-121.0.6167.85', 'chrome-linux64', 'chrome'),
-        path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux64', 'chrome'),
-        path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux', 'chrome'),
+        // 新版 puppeteer (v21+) 路径
+        path.join(__dirname, 'node_modules', 'puppeteer', '.local-chromium', 'linux-*', 'chrome-linux64', 'chrome'),
+        path.join(__dirname, 'node_modules', 'puppeteer', '.local-chromium', 'linux-*', 'chrome-linux', 'chrome'),
+        // 旧版 puppeteer 路径
+        path.join(__dirname, 'node_modules', 'puppeteer-core', '.local-chromium', 'linux-*', 'chrome-linux64', 'chrome'),
+        path.join(__dirname, 'node_modules', 'puppeteer-core', '.local-chromium', 'linux-*', 'chrome-linux', 'chrome'),
+        // 用户缓存路径（如果 postinstall 下载到了这里）
+        path.join(process.env.HOME || '/root', '.cache', 'puppeteer', 'chrome', 'linux-*', 'chrome-linux64', 'chrome'),
     ];
 
-    for (const p of possiblePaths) {
+    for (const pattern of possiblePaths) {
         try {
-            // 处理通配符
-            if (p.includes('*')) {
-                const glob = await import('glob');
-                const matches = await glob.glob(p);
-                if (matches && matches.length > 0) {
-                    const found = matches[0];
-                    console.log(`✅ 找到浏览器: ${found}`);
-                    // 设置环境变量，让 puppeteer.launch 能直接使用
-                    process.env.PUPPETEER_EXECUTABLE_PATH = found;
-                    return;
-                }
-            } else {
-                if (fs.existsSync(p)) {
-                    console.log(`✅ 找到浏览器: ${p}`);
-                    process.env.PUPPETEER_EXECUTABLE_PATH = p;
-                    return;
+            // 使用 glob 匹配通配符
+            const glob = require('glob');
+            const matches = glob.sync(pattern);
+            if (matches && matches.length > 0) {
+                // 按修改时间排序，取最新的
+                const sorted = matches.sort((a, b) => {
+                    return fs.statSync(b).mtime - fs.statSync(a).mtime;
+                });
+                const found = sorted[0];
+                if (fs.existsSync(found)) {
+                    console.log(`✅ 找到自带的 Chromium: ${found}`);
+                    return found;
                 }
             }
-        } catch (e) { /* 忽略查找错误 */ }
-    }
-
-    // 2. 如果没找到，强制下载
-    console.log('⚠️ 未找到浏览器，开始下载...');
-    try {
-        // 明确设置缓存目录并执行安装
-        execSync('npx puppeteer browsers install chrome', {
-            stdio: 'inherit',
-            cwd: __dirname,
-            env: { ...process.env, PUPPETEER_CACHE_DIR: cacheDir }
-        });
-        console.log('✅ 下载命令执行完成');
-
-        // 下载后再次查找（通常在 linux-* 目录下）
-        const newSearchPath = path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux64', 'chrome');
-        const glob = await import('glob');
-        const matches = await glob.glob(newSearchPath);
-        if (matches && matches.length > 0) {
-            const found = matches[0];
-            console.log(`✅ 下载后找到浏览器: ${found}`);
-            process.env.PUPPETEER_EXECUTABLE_PATH = found;
-            return;
+        } catch (e) {
+            // 忽略 glob 错误
         }
-        throw new Error('下载后仍未找到浏览器可执行文件');
-    } catch (error) {
-        console.error('❌ 浏览器下载或查找失败:', error.message);
-        throw new Error(`无法准备浏览器环境: ${error.message}`);
     }
+
+    return null;
 }
 
 async function getBrowser() {
     if (!browser) {
-        console.log('🚀 准备浏览器环境...');
-        await ensureBrowserInstalled(); // 确保下载
-
         console.log('🚀 启动 Puppeteer...');
+
+        // 1. 先尝试使用 Puppeteer 自带的 Chromium
+        let chromiumPath = getPuppeteerChromiumPath();
+
+        // 2. 如果没找到，尝试让 Puppeteer 自动下载（但指定缓存到 node_modules 内）
+        if (!chromiumPath) {
+            console.log('⚠️ 未找到自带的 Chromium，尝试强制下载...');
+            try {
+                // 强制下载到 node_modules 内
+                const cacheDir = path.join(__dirname, 'node_modules', '.puppeteer-cache');
+                if (!fs.existsSync(cacheDir)) {
+                    fs.mkdirSync(cacheDir, { recursive: true });
+                }
+
+                execSync('npx puppeteer browsers install chrome', {
+                    stdio: 'inherit',
+                    cwd: __dirname,
+                    env: {
+                        ...process.env,
+                        PUPPETEER_CACHE_DIR: cacheDir
+                    }
+                });
+
+                // 重新查找
+                chromiumPath = getPuppeteerChromiumPath();
+                if (!chromiumPath) {
+                    // 在自定义缓存目录中查找
+                    const customPath = path.join(cacheDir, 'chrome', 'linux-*', 'chrome-linux64', 'chrome');
+                    const glob = require('glob');
+                    const matches = glob.sync(customPath);
+                    if (matches && matches.length > 0) {
+                        chromiumPath = matches[0];
+                    }
+                }
+
+                if (chromiumPath) {
+                    console.log(`✅ 下载后找到 Chromium: ${chromiumPath}`);
+                }
+            } catch (error) {
+                console.error('❌ 自动下载失败:', error.message);
+            }
+        }
+
+        // 3. 启动浏览器
         try {
-            browser = await puppeteer.launch({
+            const launchOptions = {
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -93,12 +110,35 @@ async function getBrowser() {
                 ],
                 headless: 'new',
                 timeout: 60000
-                // 注意：不传 executablePath，让 puppeteer 从环境变量或缓存中读取
-            });
+            };
+
+            // 如果找到了 Chromium 路径，显式指定
+            if (chromiumPath) {
+                launchOptions.executablePath = chromiumPath;
+                console.log(`📌 使用 Chromium: ${chromiumPath}`);
+            } else {
+                // 如果没找到，让 Puppeteer 自己尝试（可能会从缓存中找）
+                console.log('📌 让 Puppeteer 自动查找浏览器');
+            }
+
+            browser = await puppeteer.launch(launchOptions);
             console.log('✅ 浏览器启动成功');
         } catch (error) {
             console.error('❌ 浏览器启动失败:', error.message);
-            throw new Error(`无法启动浏览器: ${error.message}`);
+
+            // 如果启动失败，尝试最后一次：使用系统默认
+            console.log('🔄 尝试使用系统默认浏览器...');
+            try {
+                browser = await puppeteer.launch({
+                    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                    headless: 'new',
+                    timeout: 60000
+                });
+                console.log('✅ 系统默认浏览器启动成功');
+            } catch (finalError) {
+                console.error('❌ 所有启动方式都失败:', finalError.message);
+                throw new Error(`无法启动浏览器: ${finalError.message}`);
+            }
         }
     }
     return browser;
