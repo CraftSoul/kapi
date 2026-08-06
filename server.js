@@ -3,7 +3,6 @@ import puppeteer from 'puppeteer';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,38 +14,54 @@ app.use(express.static(__dirname));
 
 let browser = null;
 
-// 确保浏览器已下载
-async function ensureBrowserInstalled() {
-    const cacheDir = path.join(__dirname, '.cache', 'puppeteer');
-    const chromePath = path.join(cacheDir, 'chrome', 'linux-121.0.6167.85', 'chrome-linux64', 'chrome');
-    
-    // 检查浏览器是否存在
-    if (!fs.existsSync(chromePath)) {
-        console.log('⚠️ 未找到 Chrome，正在下载...');
-        try {
-            // 执行安装命令
-            execSync('npx puppeteer browsers install chrome', {
-                stdio: 'inherit',
-                cwd: __dirname
-            });
-            console.log('✅ Chrome 下载完成');
-        } catch (error) {
-            console.error('❌ Chrome 下载失败:', error.message);
-            throw error;
-        }
-    } else {
-        console.log('✅ Chrome 已存在:', chromePath);
-    }
-}
-
 async function getBrowser() {
     if (!browser) {
-        // 确保浏览器已安装
-        await ensureBrowserInstalled();
-        
         console.log('启动 Puppeteer...');
+        
+        // 尝试多个可能的 Chromium 路径
+        const possiblePaths = [
+            process.env.PUPPETEER_EXECUTABLE_PATH,
+            process.env.CHROME_PATH,
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome'
+        ].filter(Boolean);
+        
+        let executablePath = null;
+        for (const p of possiblePaths) {
+            try {
+                if (fs.existsSync(p)) {
+                    executablePath = p;
+                    console.log(`✅ 找到浏览器: ${p}`);
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        if (!executablePath) {
+            console.log('⚠️ 未找到系统浏览器，尝试让 Puppeteer 自动下载...');
+            // 如果找不到系统浏览器，回退到 Puppeteer 自动下载
+            try {
+                browser = await puppeteer.launch({
+                    args: [
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu'
+                    ],
+                    headless: true
+                });
+                console.log('✅ Puppeteer 自动下载并启动成功');
+                return browser;
+            } catch (e) {
+                throw new Error(`无法找到浏览器: ${e.message}`);
+            }
+        }
+        
         try {
             browser = await puppeteer.launch({
+                executablePath: executablePath,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -54,14 +69,27 @@ async function getBrowser() {
                     '--disable-gpu',
                     '--disable-features=IsolateOrigins,site-per-process'
                 ],
-                headless: true,
-                // 指定缓存目录
-                userDataDir: path.join(__dirname, '.cache', 'puppeteer', 'user-data')
+                headless: true
             });
             console.log('✅ 浏览器启动成功');
         } catch (error) {
             console.error('❌ 浏览器启动失败:', error.message);
-            throw error;
+            // 如果使用系统浏览器失败，尝试自动下载
+            try {
+                console.log('🔄 尝试使用 Puppeteer 自动下载...');
+                browser = await puppeteer.launch({
+                    args: [
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu'
+                    ],
+                    headless: true
+                });
+                console.log('✅ Puppeteer 自动下载并启动成功');
+            } catch (e) {
+                throw error;
+            }
         }
     }
     return browser;
@@ -105,6 +133,7 @@ const port = process.env.PORT || 3000;
 const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`工作目录: ${__dirname}`);
+    console.log(`环境变量 PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH || '未设置'}`);
 });
 
 process.on('SIGINT', async () => {
