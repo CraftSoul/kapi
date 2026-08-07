@@ -363,7 +363,7 @@ async function drawStatsCard(ctx, x, y, w, h, radius, customTitle, mainNation, a
     ctx.fillRect(x + w * 0.05, startY + lineH - iconSize * 0.7, iconSize, iconSize);
   }
   ctx.fillStyle = factionColor[allyNation] || "#c9aa5b";
-  ctx.fillText(`${factionNames[allyNation]}: ${allyCount}`, x + w * 0.05 + iconSize + 5, startY + lineH + 2);
+  ctx.fillText(`${factionNames[allyNation].slice(0,2)}: ${allyCount}`, x + w * 0.05 + iconSize + 5, startY + lineH + 2);
 
   let lineOffset = 2;
   if (otherCount > 0) {
