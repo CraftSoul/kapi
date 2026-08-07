@@ -592,7 +592,10 @@ async function generateDeckImageWithOptions(
   if (addStatsCard) extraCount++;
   if (qrEnabled) extraCount++;
 
-  const cardW = 500, cardH = 702, radius = 15;
+  const scaleFactor = Math.max(0.3, Math.min(1, quality / 20));
+  const cardW = Math.floor(500 * scaleFactor);
+  const cardH = Math.floor(702 * scaleFactor);
+  const radius = Math.max(2, Math.floor(15 * scaleFactor));
   const totalSlots = displayCards.length + extraCount;
   const rows = Math.ceil(totalSlots / cols);
   const canvas = createCanvas(
