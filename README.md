@@ -179,12 +179,6 @@ with open('deck.png', 'wb') as f:
     f.write(base64.b64decode(base64_data))
 ```
 
-## 环境变量
-
-| 变量 | 描述 | 默认值 |
-| --- | --- |
-| PORT | 服务端口 | 3000 |
-
 ## 文件结构
 
 ```
