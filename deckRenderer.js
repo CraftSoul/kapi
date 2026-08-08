@@ -21,7 +21,7 @@ try {
   console.warn('字体注册失败:', e.message);
 }
 
-const FONT_FAMILY = '"CustomFont", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+const FONT_FAMILY = '"CustomFont", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
 // ---------- 常量定义 ----------
 const VERSION = 52;
@@ -534,69 +534,36 @@ function compareCardsForDisplay(a, b, cardCostMap, cardStarMap) {
   return a.card.cardId.localeCompare(b.card.cardId, undefined, { numeric: true, sensitivity: 'base' });
 }
 
-// ---------- 主生成函数 ----------
+// ---------- 主绘制函数（接收已排序并折叠的列表） ----------
 async function generateDeckImageWithOptions(
-  cols,
-  quality,
-  lang,
-  addStatsCard,
-  bgColor,
-  cardsWithVersion,
-  foldEnabled,
-  qrEnabled,
-  statsTitle,
-  qrTitle,
-  spacingX = 0,
-  spacingY = 0,
-  mainNation,
-  allyNation,
-  deckMap,
-  cardCostMap,
-  cardStarMap
+  cardsWithVersion,  // 已排序、已折叠（可选）、含 null（空位）
+  {
+    cols = 10,
+    quality = 20,
+    lang = 'zh-Hans',
+    addStatsCard = true,
+    bgColor = '#ffffff',
+    qrEnabled = false,
+    statsTitle = null,
+    qrTitle = null,
+    spacingX = 0,
+    spacingY = 0,
+    mainNation,
+    allyNation,
+    deckMap,
+    cardCostMap,
+    cardStarMap
+  } = {}
 ) {
   if (!cardsWithVersion || cardsWithVersion.length === 0) throw new Error("卡组为空");
-  const validCards = cardsWithVersion.filter(item => item !== null);
-  if (validCards.length === 0) throw new Error("没有有效卡片");
-
-  // ===== 排序：按花费 → cardId（与 builder.html 一致） =====
-  validCards.sort((a, b) => compareCardsForDisplay(a, b, cardCostMap, cardStarMap));
-
-  // ===== 折叠处理：折叠后的排序逻辑与 builder.html 保持一致 =====
-  let displayCards = validCards;
-  const cardCountMap = {};
-  for (const item of validCards) {
-    const key = item.card.cardId;
-    cardCountMap[key] = (cardCountMap[key] || 0) + 1;
-  }
-
-  if (foldEnabled) {
-    const uniqueMap = new Map();
-    for (const item of validCards) {
-      const key = item.card.cardId;
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, { card: item.card, version: item.version, count: 1 });
-      } else {
-        uniqueMap.get(key).count++;
-      }
-    }
-    displayCards = Array.from(uniqueMap.values()).map(item => ({
-      card: item.card,
-      version: item.version,
-      count: item.count
-    }));
-    // 折叠后重新排序（与 builder.html 一致）
-    displayCards.sort((a, b) => compareCardsForDisplay(a, b, cardCostMap, cardStarMap));
-  }
-
-  let extraCount = 0;
-  if (addStatsCard) extraCount++;
-  if (qrEnabled) extraCount++;
+  const hasValid = cardsWithVersion.some(item => item !== null);
+  if (!hasValid) throw new Error("没有有效卡片");
 
   const scaleFactor = Math.max(0.3, Math.min(1, quality / 20));
   const cardW = Math.floor(500 * scaleFactor);
   const cardH = Math.floor(702 * scaleFactor);
   const radius = Math.max(2, Math.floor(15 * scaleFactor));
-  const totalSlots = displayCards.length + extraCount;
+  const totalSlots = cardsWithVersion.length + (addStatsCard ? 1 : 0) + (qrEnabled ? 1 : 0);
   const rows = Math.ceil(totalSlots / cols);
   const canvas = createCanvas(
     cols * cardW + (cols - 1) * spacingX,
@@ -608,10 +575,6 @@ async function generateDeckImageWithOptions(
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-
-  // 用于折叠标记去重
-  const drawnFoldSet = new Set();
-  const drawnStarSet = new Set();
 
   // 画标签（箭头）辅助函数
   const drawTagWithArrow = (text, x, y, color, bgColorTag = 'rgba(0,0,0,0.85)') => {
@@ -658,31 +621,34 @@ async function generateDeckImageWithOptions(
       const x = col * (cardW + spacingX);
       const y = row * (cardH + spacingY);
 
-      let item = null;
-      if (slotIndex < displayCards.length) {
-        item = displayCards[slotIndex];
-      } else if (addStatsCard && !statsCardPlaced && slotIndex === displayCards.length) {
-        statsCardPlaced = true;
+      // 先判断是否为附加卡（统计卡或二维码卡）
+      if (!statsCardPlaced && addStatsCard && slotIndex === cardsWithVersion.length) {
         await drawStatsCard(ctx, x, y, cardW, cardH, radius, statsTitle, mainNation, allyNation, deckMap, cardCostMap);
+        statsCardPlaced = true;
         slotIndex++;
         continue;
-      } else if (qrEnabled && !qrCardPlaced && slotIndex === displayCards.length + (addStatsCard ? 1 : 0)) {
-        qrCardPlaced = true;
+      }
+      if (!qrCardPlaced && qrEnabled && slotIndex === cardsWithVersion.length + (addStatsCard ? 1 : 0)) {
         const deckCode = exportDeckCodeFromMap(deckMap, mainNation, allyNation);
         if (deckCode) {
           await drawQrCard(ctx, x, y, cardW, cardH, radius, deckCode, qrTitle);
         }
-        slotIndex++;
-        continue;
-      } else {
+        qrCardPlaced = true;
         slotIndex++;
         continue;
       }
 
-      if (item === null) { slotIndex++; continue; }
+      // 普通卡片（可能是 null 空位）
+      const item = slotIndex < cardsWithVersion.length ? cardsWithVersion[slotIndex] : null;
+      if (item === null) {
+        // 空位：跳过绘制
+        slotIndex++;
+        continue;
+      }
 
       const card = item.card;
       let ver = item.version || DEFAULT_VERSION;
+      const count = item.count || 1;
 
       // 加载图片
       let img;
@@ -753,25 +719,15 @@ async function generateDeckImageWithOptions(
       }
       ctx.restore();
 
-      // 折叠标记
-      if (foldEnabled) {
-        const count = cardCountMap[card.cardId] || 0;
-        if (count > 1 && !drawnFoldSet.has(card.cardId)) {
-          drawTagWithArrow('×' + (count > 99 ? '99+' : count), x, y + 99, '#ffffff');
-          drawnFoldSet.add(card.cardId);
-        }
+      // 折叠标记（如果数量 > 1）
+      if (count > 1) {
+        drawTagWithArrow('×' + (count > 99 ? '99+' : count), x, y + 99, '#ffffff');
       }
 
       // 星标
       if (cardStarMap && cardStarMap.has(card.cardId)) {
-        if (!foldEnabled || (foldEnabled && !drawnStarSet.has(card.cardId))) {
-          let offset = 0;
-          if (foldEnabled && drawnFoldSet.has(card.cardId)) {
-            offset = 64;
-          }
-          drawTagWithArrow('★', x, y + 99 + offset, '#ffd700');
-          if (foldEnabled) drawnStarSet.add(card.cardId);
-        }
+        let offset = count > 1 ? 64 : 0;
+        drawTagWithArrow('★', x, y + 99 + offset, '#ffd700');
       }
 
       slotIndex++;
@@ -806,7 +762,7 @@ function exportDeckCodeFromMap(deckMap, mainNation, allyNation) {
 
 // ---------- 额外统计图（独立，带阵营图标） ----------
 async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCostMap) {
-  const canvas = createCanvas(800, 500);
+  const canvas = createCanvas(800, 550);  // 高度增加至550
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = "#1a1c12";
@@ -866,38 +822,36 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
   ctx.fillStyle = factionColor[allyNation] || "#c9aa5b";
   ctx.fillText(`${factionNames[allyNation]}: ${allyCount}`, xPos, 83);
 
-  // 第二行：类型统计（靠左）
-  const typeY = 115;
+  // 第二行：类型统计（第一行，y=115）
   ctx.textAlign = "left";
   ctx.font = `15px ${FONT_FAMILY}`;
   ctx.fillStyle = "#e8e4d0";
-  ctx.fillText(`单位: ${unitTotal}`, 30, typeY);
+  ctx.fillText(`单位: ${unitTotal}`, 30, 115);
   ctx.fillStyle = "#f5c542";
-  ctx.fillText(`指令: ${orderTotal}`, 160, typeY);
+  ctx.fillText(`指令: ${orderTotal}`, 160, 115);
   ctx.fillStyle = "#a0a0a0";
-  ctx.fillText(`反制: ${counterTotal}`, 290, typeY);
+  ctx.fillText(`反制: ${counterTotal}`, 290, 115);
 
-  // 第二行：稀有度统计（靠右）
-  const rarityStartX = 460;
-  ctx.textAlign = "left";
+  // 第三行：稀有度统计（第二行，y=145）
+  ctx.font = `15px ${FONT_FAMILY}`;
   ctx.fillStyle = "#9e9e9e";
-  ctx.fillText(`普通: ${rarityCounts.Standard}`, rarityStartX, typeY);
+  ctx.fillText(`普通: ${rarityCounts.Standard}`, 30, 145);
   ctx.fillStyle = "#cd7f32";
-  ctx.fillText(`限定: ${rarityCounts.Limited}`, rarityStartX + 120, typeY);
+  ctx.fillText(`限定: ${rarityCounts.Limited}`, 160, 145);
   ctx.fillStyle = "#c0c0c0";
-  ctx.fillText(`特殊: ${rarityCounts.Special}`, rarityStartX + 240, typeY);
+  ctx.fillText(`特殊: ${rarityCounts.Special}`, 290, 145);
   ctx.fillStyle = "#ffd700";
-  ctx.fillText(`精英: ${rarityCounts.Elite}`, rarityStartX + 360, typeY);
+  ctx.fillText(`精英: ${rarityCounts.Elite}`, 420, 145);
 
-  // 平均费用
+  // 平均费用（y=175）
   ctx.fillStyle = "#ffefb9";
   ctx.font = `bold 16px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
-  ctx.fillText(`平均费用: ${avgCost.toFixed(2)}`, canvas.width/2, 148);
+  ctx.fillText(`平均费用: ${avgCost.toFixed(2)}`, canvas.width/2, 175);
 
-  // 费用柱状图
-  const barAreaY = 168;
-  const barAreaH = 280;
+  // 费用柱状图（起始 y=200，高度300）
+  const barAreaY = 200;
+  const barAreaH = 300;
   const barStartX = 50;
   const barWidth = (canvas.width - 100) / 8;
   const barMaxHeight = barAreaH * 0.85;
@@ -982,20 +936,21 @@ export async function generateDeckImage(deckCode, options = {}) {
   const hq = options.hq || null;
   const overrides = options.cardOverrides || {};
 
-  // 构建卡片列表
-  let cardsWithVersion = [];
+  // 构建卡片列表（未折叠，每个实例一项）
+  let cards = [];
 
   // 总部卡
   if (hq) {
     const hqCard = await fetchHeadquarterCard(hq, lang);
     if (hqCard) {
-      cardsWithVersion.push({ card: hqCard, version: version });
+      cards.push({ card: hqCard, version: version, count: 1 });
     }
   }
 
   const cardCostMap = new Map();
   const cardStarMap = new Map();
 
+  // 添加普通卡（每个实例一项）
   for (const { card, count } of deckMap.values()) {
     const cid = card.cardId;
     const ov = overrides[cid] || {};
@@ -1005,30 +960,63 @@ export async function generateDeckImage(deckCode, options = {}) {
     cardCostMap.set(cid, cost);
     if (star) cardStarMap.set(cid, true);
     for (let i = 0; i < count; i++) {
-      cardsWithVersion.push({ card, version: ver });
+      cards.push({ card, version: ver, count: 1 });
     }
   }
 
-  // 插入空位
+  // 排序（使用统一比较函数）
+  cards.sort((a, b) => compareCardsForDisplay(a, b, cardCostMap, cardStarMap));
+
+  let finalItems = cards;
+  if (foldEnabled) {
+    // 合并相同卡牌
+    const mergedMap = new Map();
+    for (const item of cards) {
+      const key = item.card.cardId;
+      if (mergedMap.has(key)) {
+        mergedMap.get(key).count += 1;
+      } else {
+        mergedMap.set(key, { ...item, count: 1 });
+      }
+    }
+    finalItems = Array.from(mergedMap.values());
+    // 合并后重新排序
+    finalItems.sort((a, b) => compareCardsForDisplay(a, b, cardCostMap, cardStarMap));
+  }
+
+  // 插入空位（根据 emptySlots 索引）
   const sortedSlots = [...emptySlots].sort((a, b) => b - a);
   for (const idx of sortedSlots) {
-    if (idx >= 0 && idx <= cardsWithVersion.length) {
-      cardsWithVersion.splice(idx, 0, null);
+    if (idx >= 0 && idx <= finalItems.length) {
+      finalItems.splice(idx, 0, null);
     }
   }
 
-  // 生成裁剪模板
+  // 生成裁剪模板（若尚未生成）
   if (!cropTemplate) {
     await generateCropTemplate();
   }
 
   // 生成主图
   const mainCanvas = await generateDeckImageWithOptions(
-    cols, quality, lang, addStatsCard, bgColor,
-    cardsWithVersion, foldEnabled, qrEnabled,
-    statsTitle, qrTitle,
-    spacingX, spacingY,
-    mainNation, allyNation, deckMap, cardCostMap, cardStarMap
+    finalItems,
+    {
+      cols,
+      quality,
+      lang,
+      addStatsCard,
+      bgColor,
+      qrEnabled,
+      statsTitle,
+      qrTitle,
+      spacingX,
+      spacingY,
+      mainNation,
+      allyNation,
+      deckMap,
+      cardCostMap,
+      cardStarMap
+    }
   );
 
   const mainBuffer = mainCanvas.toBuffer('image/png');
