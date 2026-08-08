@@ -839,63 +839,67 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
   ctx.fillStyle = "#ffefbf";
   ctx.font = `bold 28px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
-  ctx.fillText("卡组统计", canvas.width/2, 50);
+  ctx.fillText("卡组统计", canvas.width/2, 45);
 
   // 阵营图标
-  const iconSize = 30;
+  const iconSize = 28;
   const mainIcon = await loadFactionIcon(mainNation);
   const allyIcon = await loadFactionIcon(allyNation);
 
-  // 顶部信息行
-  ctx.font = `18px ${FONT_FAMILY}`;
+  // 第一行：阵营信息
+  ctx.font = `16px ${FONT_FAMILY}`;
   ctx.textAlign = "left";
 
-  let xPos = 40;
+  let xPos = 30;
   if (mainIcon) {
-    ctx.drawImage(mainIcon, xPos, 65, iconSize, iconSize);
+    ctx.drawImage(mainIcon, xPos, 62, iconSize, iconSize);
     xPos += iconSize + 5;
   }
   ctx.fillStyle = factionColor[mainNation] || "#c9aa5b";
-  ctx.fillText(`${factionNames[mainNation]}: ${mainCount}`, xPos, 88);
+  ctx.fillText(`${factionNames[mainNation]}: ${mainCount}`, xPos, 83);
 
-  xPos += 150;
+  xPos += 140;
   if (allyIcon) {
-    ctx.drawImage(allyIcon, xPos, 65, iconSize, iconSize);
+    ctx.drawImage(allyIcon, xPos, 62, iconSize, iconSize);
     xPos += iconSize + 5;
   }
   ctx.fillStyle = factionColor[allyNation] || "#c9aa5b";
-  ctx.fillText(`${factionNames[allyNation]}: ${allyCount}`, xPos, 88);
+  ctx.fillText(`${factionNames[allyNation]}: ${allyCount}`, xPos, 83);
 
-  // 类型统计
-  const startY = 110;
+  // 第二行：类型统计（靠左）
+  const typeY = 115;
   ctx.textAlign = "left";
+  ctx.font = `15px ${FONT_FAMILY}`;
   ctx.fillStyle = "#e8e4d0";
-  ctx.fillText(`单位: ${unitTotal}`, 40, startY);
+  ctx.fillText(`单位: ${unitTotal}`, 30, typeY);
   ctx.fillStyle = "#f5c542";
-  ctx.fillText(`指令: ${orderTotal}`, 180, startY);
+  ctx.fillText(`指令: ${orderTotal}`, 160, typeY);
   ctx.fillStyle = "#a0a0a0";
-  ctx.fillText(`反制: ${counterTotal}`, 320, startY);
+  ctx.fillText(`反制: ${counterTotal}`, 290, typeY);
 
-  // 稀有度统计
+  // 第二行：稀有度统计（靠右）
+  const rarityStartX = 460;
   ctx.textAlign = "left";
   ctx.fillStyle = "#9e9e9e";
-  ctx.fillText(`普通: ${rarityCounts.Standard}`, 480, startY);
+  ctx.fillText(`普通: ${rarityCounts.Standard}`, rarityStartX, typeY);
   ctx.fillStyle = "#cd7f32";
-  ctx.fillText(`限定: ${rarityCounts.Limited}`, 580, startY);
+  ctx.fillText(`限定: ${rarityCounts.Limited}`, rarityStartX + 120, typeY);
   ctx.fillStyle = "#c0c0c0";
-  ctx.fillText(`特殊: ${rarityCounts.Special}`, 680, startY);
+  ctx.fillText(`特殊: ${rarityCounts.Special}`, rarityStartX + 240, typeY);
   ctx.fillStyle = "#ffd700";
-  ctx.fillText(`精英: ${rarityCounts.Elite}`, 780, startY);
+  ctx.fillText(`精英: ${rarityCounts.Elite}`, rarityStartX + 360, typeY);
 
+  // 平均费用
   ctx.fillStyle = "#ffefb9";
-  ctx.font = `18px ${FONT_FAMILY}`;
+  ctx.font = `bold 16px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
-  ctx.fillText(`平均费用: ${avgCost.toFixed(2)}`, canvas.width/2, 145);
+  ctx.fillText(`平均费用: ${avgCost.toFixed(2)}`, canvas.width/2, 148);
 
-  const barAreaY = 170;
+  // 费用柱状图
+  const barAreaY = 168;
   const barAreaH = 280;
-  const barStartX = 60;
-  const barWidth = (canvas.width - 120) / 8;
+  const barStartX = 50;
+  const barWidth = (canvas.width - 100) / 8;
   const barMaxHeight = barAreaH * 0.85;
   const barGap = 4;
 
@@ -935,19 +939,15 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
     }
 
     ctx.fillStyle = "#f5eaca";
-    ctx.font = `16px ${FONT_FAMILY}`;
+    ctx.font = `14px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
-    const labelY = barAreaY + barAreaH + 25;
+    const labelY = barAreaY + barAreaH + 22;
     ctx.fillText(i === 7 ? "7K+" : `${i}K`, bx + (barWidth - barGap) / 2, labelY);
 
     if (total > 0) {
       ctx.fillStyle = "#ffefb9";
-      ctx.font = `14px ${FONT_FAMILY}`;
+      ctx.font = `12px ${FONT_FAMILY}`;
       ctx.fillText(total, bx + (barWidth - barGap) / 2, barAreaY + barAreaH - unitH - orderH - counterH - 5);
-    } else {
-      ctx.fillStyle = "#ffefb9";
-      ctx.font = `14px ${FONT_FAMILY}`;
-      ctx.fillText("0", bx + (barWidth - barGap) / 2, barAreaY + barAreaH - 5);
     }
   }
 
