@@ -6,9 +6,9 @@
 
 ### Render 一键部署
 
-点击下方按钮一键部署到 Render：
+点击下方按钮跳转 Render：
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://railway.com?referralCode=C3GU6z)
 
 ### 手动部署
 
