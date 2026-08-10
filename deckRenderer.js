@@ -721,13 +721,13 @@ async function generateDeckImageWithOptions(
 
       // 折叠标记（如果数量 > 1）
       if (count > 1) {
-        drawTagWithArrow('×' + (count > 99 ? '99+' : count), x, y + 99, '#ffffff');
+        drawTagWithArrow('×' + (count > 99 ? '99+' : count), x, y + 99 * scaleFactor, '#ffffff');
       }
 
       // 星标
       if (cardStarMap && cardStarMap.has(card.cardId)) {
         let offset = count > 1 ? 64 : 0;
-        drawTagWithArrow('★', x, y + 99 + offset, '#ffd700');
+        drawTagWithArrow('★', x, y + (99 + offset) * scaleFactor, '#ffd700');
       }
 
       slotIndex++;
