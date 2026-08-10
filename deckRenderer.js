@@ -727,7 +727,7 @@ async function generateDeckImageWithOptions(
       // 星标
       if (cardStarMap && cardStarMap.has(card.cardId)) {
         let offset = count > 1 ? 64 : 0;
-        drawTagWithArrow('★', x, y + (99 + offset) * scaleFactor, '#ffd700');
+        drawTagWithArrow('★', x, y + 99 * scaleFactor + offset, '#ffd700');
       }
 
       slotIndex++;
