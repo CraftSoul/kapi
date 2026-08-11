@@ -78,7 +78,7 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 sharp 加载图片
+// 使用 sharp 加载图片（修复 AVIF 色彩通道翻转问题）
 async function loadImageWithSharp(url) {
   try {
     // 下载图片
@@ -89,10 +89,15 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
+    // ✅ 让 sharp 直接进行标准 sRGB 色彩空间转换，并生成 PNG Buffer
+    // 彻底废弃手动 raw 拼接，避免 YUV→RGB 转换时丢失矩阵信息
     const pngBuffer = await sharp(buffer)
+      .withMetadata()           // 保留必要的图片元信息
+      .toColorspace('srgb')     // 强制转换为标准 sRGB 色彩空间（修复通道错乱的关键）
       .png({
         compressionLevel: 6,
-        adaptiveFiltering: false
+        adaptiveFiltering: false,
+        force: true
       })
       .toBuffer();
     
