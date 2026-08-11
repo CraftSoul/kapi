@@ -42,7 +42,10 @@ npm start
 
 ## API
 
-已部署接口：https://kapi-v7wl.onrender.com/generate
+### 接口
+```
+https://kapi-v7wl.onrender.com/generate
+```
 
 生成卡组图片
 
@@ -62,8 +65,9 @@ Content-Type: application/json
 | version | string | `DEFAULT_VERSION` | 卡牌版本 |
 | cols | number | 10 | 每行卡牌数量 |
 | quality | number | 20 | 图片质量(1-100) |
+| scale | number | 100 | 缩放比例(%) |
 | lang | string | zh-Hans | 语言代码 |
-| bgColor| string | #ffffff | 背景颜色(支持`transparent`) |
+| bgColor| string | transparent | 背景颜色(十六进制颜色码) |
 | addStatsCard | boolean | true | 统计卡 |
 | foldEnabled | boolean | false | 折叠重复卡牌 |
 | qrEnabled | boolean | false | 二维码卡 |
@@ -196,11 +200,10 @@ with open('deck.png', 'wb') as f:
 
 ## 注意事项
 
-1. 中文字体：确保 `font.ttf` 存在于项目根目录
-2. 卡牌数据：`data.json` 需包含完整卡牌数据
-3. 阵营图标：`{faction}.svg` 文件
-4. 图片缓存：使用 `weserv.nl` 代理卡牌图片
-5. 部署环境：Render 免费计划有 512MB 内存限制，复杂卡组可能超时
+1. 卡牌数据：需同步更新`data.json`
+2. 阵营图标：`{faction}.svg` 文件
+3. 图片缓存：使用 `weserv.nl` 代理卡牌图片，若无跨域和色差问题可直接使用官网avif图片
+4. 部署环境：本API使用 Render 免费计划，启动速度快如故障机器人
 
 ## 许可
 
