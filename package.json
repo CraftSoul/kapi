@@ -11,7 +11,7 @@
     "qrcode": "^1.5.3",
     "sharp": "^0.32.6",
     "jimp": "^0.22.12",
-    "@jsquash/avif": "^1.0.0"
+    "jimp-avif": "^1.0.0"
   },
   "engines": {
     "node": "18.x"

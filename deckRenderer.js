@@ -6,20 +6,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import Jimp from 'jimp';
-import { decode } from '@jsquash/avif';
-import { readFileSync } from 'fs';
+import 'jimp-avif';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-let wasmBinary = null;
-try {
-  const wasmPath = path.join(__dirname, 'node_modules', '@jsquash', 'avif', 'codec', 'dec', 'avif_dec.wasm');
-  wasmBinary = readFileSync(wasmPath);
-  console.log('✅ AVIF WASM 解码器已同步加载到内存');
-} catch (e) {
-  console.error('❌ 无法读取 AVIF WASM 文件，请检查 node_modules', e);
-}
 
 // 注册字体
 try {
@@ -97,18 +87,16 @@ async function loadImageWithSharp(url) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
 
-    const imageData = await decode(uint8Array, { wasmBinary });
+    // 1. 直接用 Jimp 读取 AVIF 内存 Buffer
+    // 因为引入了 jimp-avif，Jimp 会调用纯 JS 解析器处理 AVIF 头
+    const image = await Jimp.read(buffer);
 
-    const image = await Jimp.create({
-      data: Buffer.from(imageData.data),
-      width: imageData.width,
-      height: imageData.height
-    });
-
+    // 2. 让 Jimp 将其输出为标准 PNG Buffer
     const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
 
+    // 3. 交给 Canvas 加载，此时颜色已经完全准确（与 Python PIL 结果相同）
     return await loadImage(pngBuffer);
 
   } catch (error) {
