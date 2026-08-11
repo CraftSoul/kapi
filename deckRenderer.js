@@ -4,7 +4,7 @@ import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Jimp from 'jimp';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,10 +80,9 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 Jimp 加载图片（支持 AVIF，类似 PIL）
-async function loadImageWithJimp(url) {
+// 使用 sharp 加载图片 - JPEG 中转方案
+async function loadImageWithSharp(url) {
   try {
-    // 下载图片
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -91,17 +90,39 @@ async function loadImageWithJimp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // 使用 Jimp 读取图片（自动处理 AVIF）
-    const image = await Jimp.read(buffer);
-    
-    // 确保 RGBA 格式（类似于 Python 的 convert("RGBA")）
-    image.rgba(true);
-    
-    // 获取 PNG buffer
-    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
-    
-    // 使用 canvas 的 loadImage 加载 PNG
-    return await loadImage(pngBuffer);
+    // 方法1: 强制颜色空间转换
+    try {
+      const pngBuffer = await sharp(buffer, {
+        failOnError: false
+      })
+      .toColorspace('srgb')
+      .ensureAlpha()
+      .png({
+        compressionLevel: 6,
+        adaptiveFiltering: false
+      })
+      .toBuffer();
+      
+      return await loadImage(pngBuffer);
+    } catch (directError) {
+      console.warn('直接转换失败，尝试 JPEG 中转:', directError.message);
+      
+      // 方法2: 通过 JPEG 中转（丢弃 alpha）
+      const jpegBuffer = await sharp(buffer, {
+        failOnError: false
+      })
+      .jpeg({
+        quality: 92,
+        force: true
+      })
+      .toBuffer();
+      
+      const pngBuffer = await sharp(jpegBuffer)
+      .png()
+      .toBuffer();
+      
+      return await loadImage(pngBuffer);
+    }
   } catch (error) {
     console.error('加载图片失败:', error);
     throw new Error(`加载图片失败: ${error.message}`);
