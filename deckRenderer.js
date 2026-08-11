@@ -4,7 +4,7 @@ import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import sharp from 'sharp';
+import Jimp from 'jimp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +48,7 @@ async function loadFactionIcon(factionKey) {
   }
 
   try {
+    // 从本地加载 SVG
     const iconPath = path.join(__dirname, `${factionKey}.svg`);
     if (fs.existsSync(iconPath)) {
       const svgBuffer = fs.readFileSync(iconPath);
@@ -56,6 +57,7 @@ async function loadFactionIcon(factionKey) {
       factionIconCache.set(factionKey, img);
       return img;
     }
+    // 本地不存在则跳过（不再请求网络）
     console.warn(`⚠️ 阵营图标 ${factionKey} 本地不存在，跳过`);
     return null;
   } catch (e) {
@@ -78,8 +80,10 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-async function loadImageWithSharp(url) {
+// 使用 Jimp 加载图片（支持 AVIF，类似 PIL）
+async function loadImageWithJimp(url) {
   try {
+    // 下载图片
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -87,19 +91,16 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // 直接输出为 JPEG（自动处理颜色），然后转为 PNG
-    const jpegBuffer = await sharp(buffer)
-      .jpeg({
-        quality: 92,
-        progressive: true,
-        force: true
-      })
-      .toBuffer();
+    // 使用 Jimp 读取图片（自动处理 AVIF）
+    const image = await Jimp.read(buffer);
     
-    const pngBuffer = await sharp(jpegBuffer)
-      .png()
-      .toBuffer();
+    // 确保 RGBA 格式（类似于 Python 的 convert("RGBA")）
+    image.rgba(true);
     
+    // 获取 PNG buffer
+    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
+    
+    // 使用 canvas 的 loadImage 加载 PNG
     return await loadImage(pngBuffer);
   } catch (error) {
     console.error('加载图片失败:', error);
@@ -285,18 +286,22 @@ async function drawStatsCard(ctx, x, y, w, h, radius, customTitle, mainNation, a
   const lineH = h * 0.075;
   const iconSize = Math.floor(h * 0.06);
 
+  // 加载阵营图标
   const mainIcon = await loadFactionIcon(mainNation);
   const allyIcon = await loadFactionIcon(allyNation);
 
+  // 绘制主国图标和文字
   if (mainIcon) {
     ctx.drawImage(mainIcon, x + w * 0.05, startY - iconSize * 0.7, iconSize, iconSize);
   } else {
+    // 降级方案：绘制彩色方块
     ctx.fillStyle = factionColor[mainNation] || "#c9aa5b";
     ctx.fillRect(x + w * 0.05, startY - iconSize * 0.7, iconSize, iconSize);
   }
   ctx.fillStyle = factionColor[mainNation] || "#c9aa5b";
   ctx.fillText(`${factionNames[mainNation]}: ${mainCount}`, x + w * 0.05 + iconSize + 5, startY + 2);
 
+  // 绘制盟国图标和文字
   if (allyIcon) {
     ctx.drawImage(allyIcon, x + w * 0.05, startY + lineH - iconSize * 0.7, iconSize, iconSize);
   } else {
@@ -460,19 +465,22 @@ async function drawQrCard(ctx, x, y, w, h, radius, qrCodeData, customTitle) {
   ctx.restore();
 }
 
-// ---------- 排序比较函数 ----------
+// ---------- 排序比较函数（与 builder.html 保持一致） ----------
 function compareCardsForDisplay(a, b, cardCostMap, cardStarMap) {
+  // 总部优先
   if (a.card.isHeadquarter && !b.card.isHeadquarter) return -1;
   if (!a.card.isHeadquarter && b.card.isHeadquarter) return 1;
 
+  // 按花费升序
   const costA = cardCostMap.get(a.card.cardId) ?? a.card.cost;
   const costB = cardCostMap.get(b.card.cardId) ?? b.card.cost;
   if (costA !== costB) return costA - costB;
 
+  // 按 cardId 升序（与 builder.html 一致）
   return a.card.cardId.localeCompare(b.card.cardId, undefined, { numeric: true, sensitivity: 'base' });
 }
 
-// ---------- 主绘制函数 ----------
+// ---------- 主绘制函数（接收已排序并折叠的列表） ----------
 async function generateDeckImageWithOptions(
   cardsWithVersion,
   {
@@ -514,6 +522,7 @@ async function generateDeckImageWithOptions(
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
+  // 画标签（箭头）辅助函数
   const drawTagWithArrow = (text, x, y, color, bgColorTag = 'rgba(0,0,0,0.85)') => {
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
@@ -558,6 +567,7 @@ async function generateDeckImageWithOptions(
       const x = col * (cardW + spacingX);
       const y = row * (cardH + spacingY);
 
+      // 先判断是否为附加卡（统计卡或二维码卡）
       if (!statsCardPlaced && addStatsCard && slotIndex === cardsWithVersion.length) {
         await drawStatsCard(ctx, x, y, cardW, cardH, radius, statsTitle, mainNation, allyNation, deckMap, cardCostMap);
         statsCardPlaced = true;
@@ -574,6 +584,7 @@ async function generateDeckImageWithOptions(
         continue;
       }
 
+      // 普通卡片（可能是 null 空位）
       const item = slotIndex < cardsWithVersion.length ? cardsWithVersion[slotIndex] : null;
       if (item === null) {
         slotIndex++;
@@ -584,6 +595,7 @@ async function generateDeckImageWithOptions(
       let ver = item.version || DEFAULT_VERSION;
       const count = item.count || 1;
 
+      // 加载图片
       let img;
       if (card.isCustom && card.imageData) {
         img = await loadImage(card.imageData);
@@ -592,9 +604,11 @@ async function generateDeckImageWithOptions(
           ver = DEFAULT_VERSION;
         }
         const imgUrl = getCardImageUrl(card.image, lang, ver);
-        img = await loadImageWithSharp(imgUrl);
+        // 使用 Jimp 加载图片（支持 AVIF）
+        img = await loadImageWithJimp(imgUrl);
       }
 
+      // 绘制卡片
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(x + radius, y);
@@ -644,10 +658,12 @@ async function generateDeckImageWithOptions(
       }
       ctx.restore();
 
+      // 折叠标记
       if (count > 1) {
         drawTagWithArrow('×' + (count > 99 ? '99+' : count), x, y + 99 * scaleFactor, '#ffffff');
       }
 
+      // 星标
       if (cardStarMap && cardStarMap.has(card.cardId)) {
         let offset = count > 1 ? 64 : 0;
         drawTagWithArrow('★', x, y + 99 * scaleFactor + offset, '#ffd700');
@@ -660,7 +676,7 @@ async function generateDeckImageWithOptions(
   return canvas;
 }
 
-// ---------- 导出卡组代码 ----------
+// ---------- 导出卡组代码（二维码用） ----------
 function exportDeckCodeFromMap(deckMap, mainNation, allyNation) {
   if (deckMap.size === 0) return null;
   const cardCountMap = new Map();
@@ -683,7 +699,7 @@ function exportDeckCodeFromMap(deckMap, mainNation, allyNation) {
   return `%%${getNationCode(mainNation)}${getNationCode(allyNation)}|${regions[0]};${regions[1]};${regions[2]};${regions[3]}`;
 }
 
-// ---------- 额外统计图 ----------
+// ---------- 额外统计图（独立，带阵营图标） ----------
 async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCostMap) {
   const canvas = createCanvas(800, 550);
   const ctx = canvas.getContext('2d');
@@ -937,7 +953,7 @@ export async function generateDeckImage(deckCode, options = {}) {
   };
 }
 
-// ---------- 预加载图标 ----------
+// ---------- 预加载图标（启动时调用） ----------
 export async function preloadIcons() {
   await preloadFactionIcons();
 }
