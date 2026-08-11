@@ -78,7 +78,7 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 sharp 加载图片（支持 AVIF）
+// 使用 sharp 加载图片
 async function loadImageWithSharp(url) {
   try {
     // 下载图片
@@ -89,19 +89,48 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // 使用 sharp 解码，强制转换为 RGBA 并确保颜色正确
-    const pngBuffer = await sharp(buffer, {
-      // 确保锐化正确处理颜色空间
-      failOnError: false
-    })
-      .ensureAlpha()  // 确保有 alpha 通道
-      .toColorspace('srgb')  // 转换为 sRGB 颜色空间
-      .png({
-        compressionLevel: 6,
-        // 强制输出 RGBA
-        adaptiveFiltering: false
+    // 获取图像元数据
+    const metadata = await sharp(buffer).metadata();
+    
+    // 如果图像有 alpha 通道，需要特殊处理
+    let pngBuffer;
+    if (metadata.hasAlpha) {
+      // 对于带 alpha 的图像，提取并重组
+      const rawData = await sharp(buffer)
+        .raw()
+        .toBuffer();
+      
+      const { width, height, channels } = metadata;
+      
+      // 创建新的 RGBA buffer
+      const rgbaBuffer = Buffer.alloc(width * height * 4);
+      
+      for (let i = 0; i < width * height; i++) {
+        const idx = i * channels;
+        const rgbaIdx = i * 4;
+        // 复制 RGB 通道
+        rgbaBuffer[rgbaIdx] = rawData[idx];
+        rgbaBuffer[rgbaIdx + 1] = rawData[idx + 1];
+        rgbaBuffer[rgbaIdx + 2] = rawData[idx + 2];
+        // alpha 通道
+        rgbaBuffer[rgbaIdx + 3] = channels === 4 ? rawData[idx + 3] : 255;
+      }
+      
+      pngBuffer = await sharp(rgbaBuffer, {
+        raw: {
+          width: width,
+          height: height,
+          channels: 4
+        }
       })
-      .toBuffer();
+        .png()
+        .toBuffer();
+    } else {
+      // 没有 alpha，直接转换
+      pngBuffer = await sharp(buffer)
+        .png()
+        .toBuffer();
+    }
     
     // 使用 canvas 的 loadImage 加载 PNG
     return await loadImage(pngBuffer);
@@ -501,7 +530,7 @@ async function generateDeckImageWithOptions(
   const hasValid = cardsWithVersion.some(item => item !== null);
   if (!hasValid) throw new Error("没有有效卡片");
 
-  const scaleFactor = Math.max(0.3, Math.min(1, quality / 20));
+  const scaleFactor = quality / 100;
   const cardW = Math.floor(500 * scaleFactor);
   const cardH = Math.floor(702 * scaleFactor);
   const radius = Math.max(2, Math.floor(15 * scaleFactor));
