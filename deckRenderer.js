@@ -5,10 +5,20 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
-
+import { readFileSync } from 'fs';
+import { decode } from '@jsquash/avif';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let wasmBytes = null;
+try {
+  const wasmPath = path.join(__dirname, 'node_modules', '@jsquash', 'avif', 'codec', 'dec', 'avif_dec.wasm');
+  wasmBytes = readFileSync(wasmPath);
+  console.log('✅ 成功加载 AVIF WASM 解码器 (本地二进制加载)');
+} catch (e) {
+  console.error('❌ 未找到 AVIF WASM 文件，请确认 node_modules 安装完整', e);
+}
 
 // 注册字体
 try {
@@ -79,7 +89,6 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 终极修复：避免 WASM 崩溃 + 强制 sRGB 色彩空间
 async function loadImageWithSharp(url) {
   try {
     const response = await fetch(url);
@@ -87,27 +96,23 @@ async function loadImageWithSharp(url) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    
+    const imageData = await decode(new Uint8Array(arrayBuffer), {
+      wasmBinary: wasmBytes
+    });
 
-    // 强制格式化为 sRGB 色彩空间，并使用 raw 输出彻底避免 HEIC/AVIF 色带翻转错误
-    const { data, info } = await sharp(buffer, { failOnError: false })
-      .withMetadata()
-      .toColorspace('srgb')  // 关键！强制转换成和 PIL 相同的 sRGB 色彩
-      .raw()                 // 剥离编码层，避免底层系统 libheif 的 bug
-      .toBuffer({ resolveWithObject: true });
-
-    // 手动将 raw RGBA 数据构建为 PNG Buffer
-    const pngBuffer = await sharp(data, {
+    const { default: sharp } = await import('sharp');
+    const pngBuffer = await sharp(Buffer.from(imageData.data), {
       raw: {
-        width: info.width,
-        height: info.height,
-        channels: info.channels
+        width: imageData.width,
+        height: imageData.height,
+        channels: 4
       }
     })
     .png()
     .toBuffer();
-
     return await loadImage(pngBuffer);
+
   } catch (error) {
     console.error('加载图片失败:', error);
     throw new Error(`加载图片失败: ${error.message}`);
