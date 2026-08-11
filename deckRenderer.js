@@ -78,9 +78,10 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 sharp 加载图片（支持 AVIF，正确处理颜色通道）
+// 使用 sharp 加载图片（支持 AVIF）
 async function loadImageWithSharp(url) {
   try {
+    // 下载图片
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -88,22 +89,24 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // 使用 sharp 解码并转换为 PNG
-    // 关键：确保色彩空间正确，并展平 alpha 通道
-    const pngBuffer = await sharp(buffer)
-      .toColorspace('srgb')          // 强制转换为 sRGB 色彩空间
-      .ensureAlpha()                 // 确保有 alpha 通道
-      .flatten({ background: { r: 0, g: 0, b: 0 } })  // 用黑色背景展平 alpha 通道
+    // 使用 sharp 解码，强制转换为 RGBA 并确保颜色正确
+    const pngBuffer = await sharp(buffer, {
+      // 确保锐化正确处理颜色空间
+      failOnError: false
+    })
+      .ensureAlpha()  // 确保有 alpha 通道
+      .toColorspace('srgb')  // 转换为 sRGB 颜色空间
       .png({
         compressionLevel: 6,
-        palette: false,              // 不使用调色板，保持真彩色
-        colorspace: 'srgb'           // 输出 sRGB
+        // 强制输出 RGBA
+        adaptiveFiltering: false
       })
       .toBuffer();
     
+    // 使用 canvas 的 loadImage 加载 PNG
     return await loadImage(pngBuffer);
   } catch (error) {
-    console.error(`加载图片失败: ${url}`, error.message);
+    console.error('加载图片失败:', error);
     throw new Error(`加载图片失败: ${error.message}`);
   }
 }
