@@ -4,7 +4,8 @@ services:
     env: node
     plan: free
     buildCommand: |
-      apt-get update && apt-get install -y libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev build-essential
+      apt-get update
+      apt-get install -y libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev build-essential libheif-dev
       npm install
     startCommand: npm start
     envVars:

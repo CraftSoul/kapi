@@ -4,7 +4,6 @@ import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { parseAvif, encodePng } from 'avif-to-png';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -86,16 +85,13 @@ async function loadImageWithSharp(url) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     
-    // 1. 解析 AVIF 为原始的 RGBA 像素数据
-    const imageData = parseAvif(new Uint8Array(arrayBuffer));
+    const pngBuffer = await sharp(buffer, { limitInputPixels: false })
+      .png()
+      .toBuffer();
     
-    // 2. 将解析出的 RGBA 数据编码为标准的 PNG
-    const pngBuffer = encodePng(imageData);
-    
-    // 3. 交给 canvas 加载，此时是 PNG 格式，完美兼容
     return await loadImage(pngBuffer);
-
   } catch (error) {
     console.error('加载图片失败:', error);
     throw new Error(`加载图片失败: ${error.message}`);
