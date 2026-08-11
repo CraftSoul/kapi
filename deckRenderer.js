@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,55 +79,70 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 终极颜色校正方案：手工交换 R 和 B 通道（修复蓝变绿、红变紫）
 async function loadImageWithSharp(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // 1. 用 sharp 尝试解码（不管颜色对不对，先把像素数据取出来）
-    // 强制限制输入像素，防止大图抛出异常
-    const { data, info } = await sharp(buffer, { 
-      limitInputPixels: false 
-    })
-    .raw()  // 获取原始的 RGBA 字节流
-    .toBuffer({ resolveWithObject: true });
-
-    // 2. ✨ 核心修复：手动遍历像素，交换红色和蓝色通道
-    // 你看到的“深蓝变绿、红褐变紫”是因为 R 和 B 错位了
-    const pixelCount = data.length / 4;
-    for (let i = 0; i < pixelCount; i++) {
-      const offset = i * 4;
-      const r = data[offset];     // 红色
-      const b = data[offset + 2]; // 蓝色
-      // 交换它们
-      data[offset] = b; 
-      data[offset + 2] = r;
-      // G(绿色) 和 A(透明) 保持不变
-    }
-
-    // 3. 把修复好颜色的纯 RGBA 数据，重新打包成 PNG 格式
-    const pngBuffer = await sharp(data, {
-      raw: {
-        width: info.width,
-        height: info.height,
-        channels: 4
+  return new Promise(async (resolve, reject) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-    })
-    .png()
-    .toBuffer();
+      const arrayBuffer = await response.arrayBuffer();
+      const inputBuffer = Buffer.from(arrayBuffer);
 
-    // 4. 交给 canvas 加载（此时颜色已经完美归一）
-    return await loadImage(pngBuffer);
+      // 🔥 终极方案：使用 Render 自带的 ImageMagick (magick) 命令行
+      // 它不受 Node sharp 内存预估 Bug 的影响，色彩转换与 Python PIL 完全等效
+      const convert = spawn('magick', [
+        'avif:-',          // 从标准输入读取 AVIF
+        'png:-'            // 输出 PNG 到标准输出
+      ]);
 
-  } catch (error) {
-    console.error('加载图片失败:', error);
-    throw new Error(`加载图片失败: ${error.message}`);
-  }
+      const chunks = [];
+      let errorOutput = '';
+
+      convert.stdout.on('data', (chunk) => chunks.push(chunk));
+      
+      convert.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      convert.on('close', async (code) => {
+        if (code !== 0) {
+          // 如果 magick 命令不存在，回退到原始的 force sharp 逻辑
+          console.warn(`magick 转换失败(code ${code}):`, errorOutput);
+          try {
+            // 回退方案：把文件当成 raw 强行交由 sharp 处理，避开 memory area too small
+            const sharp = (await import('sharp')).default;
+            const pngBuffer = await sharp(inputBuffer, { 
+              limitInputPixels: false,
+              failOnError: false 
+            })
+            .toColorspace('srgb')
+            .png()
+            .toBuffer();
+            return resolve(await loadImage(pngBuffer));
+          } catch (fallbackErr) {
+            return reject(new Error(`所有解码方案都失败: ${fallbackErr.message}`));
+          }
+        }
+
+        // magick 正常输出
+        const pngBuffer = Buffer.concat(chunks);
+        try {
+          const img = await loadImage(pngBuffer);
+          resolve(img);
+        } catch (loadErr) {
+          reject(loadErr);
+        }
+      });
+
+      // 写入输入流并结束
+      convert.stdin.write(inputBuffer);
+      convert.stdin.end();
+
+    } catch (error) {
+      reject(new Error(`加载图片失败: ${error.message}`));
+    }
+  });
 }
 
 async function probeImageExists(imgName, lang, version) {
