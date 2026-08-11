@@ -78,10 +78,10 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 sharp 加载图片（彻底修复色彩通道错位/色相偏移）
+// 使用 sharp 加载图片
 async function loadImageWithSharp(url) {
   try {
-    // 1. 下载图片
+    // 下载图片
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -89,23 +89,16 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // 2. 使用 sharp 解码并强制应用色彩矩阵修复
-    // 矩阵说明：原顺序 R, G, B -> 经过矩阵后变成 B, G, R (色相偏移大约 120° 刚好能通过交换红蓝修复)
     const pngBuffer = await sharp(buffer)
-      .ensureAlpha() // 确保有 Alpha 通道
-      .recomb([      // 自定义重组矩阵 (应用在 RGBA 上)
-        0, 0, 1, 0,  // 新 R 通道 = 原 B 通道
-        0, 1, 0, 0,  // 新 G 通道 = 原 G 通道
-        1, 0, 0, 0,  // 新 B 通道 = 原 R 通道
-        0, 0, 0, 1   // 新 A 通道 = 原 A 通道
-      ])
+      .withMetadata()           // 保留必要的图片元信息
+      .toColorspace('srgb')     // 强制转换为标准 sRGB 色彩空间
       .png({
         compressionLevel: 6,
-        adaptiveFiltering: false
+        adaptiveFiltering: false,
+        force: true
       })
       .toBuffer();
     
-    // 3. 交由 Canvas 加载
     return await loadImage(pngBuffer);
   } catch (error) {
     console.error('加载图片失败:', error);
