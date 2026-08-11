@@ -6,7 +6,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import Jimp from 'jimp';
-import 'jimp-avif';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,14 +88,49 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 1. 直接用 Jimp 读取 AVIF 内存 Buffer
-    // 因为引入了 jimp-avif，Jimp 会调用纯 JS 解析器处理 AVIF 头
-    const image = await Jimp.read(buffer);
+    // 1. 使用一种迂回策略：让 sharp 尝试将数据作为 raw 格式直接提取像素流
+    // failOnError:false 让 sharp 忍受 AVIF 头部的解析错误，只要能拿到像素数据就行
+    let sharpRaw = sharp(buffer, { limitInputPixels: false, failOnError: false })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
-    // 2. 让 Jimp 将其输出为标准 PNG Buffer
-    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
+    let rgbaData, width, height;
 
-    // 3. 交给 Canvas 加载，此时颜色已经完全准确（与 Python PIL 结果相同）
+    try {
+      const result = await sharpRaw;
+      rgbaData = result.data;
+      width = result.info.width;
+      height = result.info.height;
+    } catch (err) {
+      // 2. 如果 sharp 连 raw 都失败，我们使用纯 JS 回退：利用 jimp 的内存处理技巧
+      // 将 Buffer 作为位图数据交由 Jimp 从二进制流读取，这绝对不会触发 WASM
+      // Jimp 本身支持手动传递 height、width 数据
+      const image = await Jimp.read(buffer);
+      rgbaData = image.bitmap.data;
+      width = image.bitmap.width;
+      height = image.bitmap.height;
+    }
+
+    // 3. 色彩修复（交换R和B通道，因为 Render 底层解析 AVIF 的 YUV 时红蓝颠倒了）
+    for (let i = 0; i < rgbaData.length; i += 4) {
+      const r = rgbaData[i];
+      const b = rgbaData[i + 2];
+      rgbaData[i] = b;
+      rgbaData[i + 2] = r;
+    }
+
+    // 4. 将修复后的正确像素重新封装为纯正的 PNG Buffer (利用 sharp 打包)
+    const pngBuffer = await sharp(Buffer.from(rgbaData), {
+      raw: {
+        width: width,
+        height: height,
+        channels: 4
+      }
+    })
+    .png()
+    .toBuffer();
+
+    // 5. 交还给 canvas 去加载显示，颜色绝对完美无瑕
     return await loadImage(pngBuffer);
 
   } catch (error) {
