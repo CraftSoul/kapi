@@ -9,7 +9,7 @@
     "express": "^4.18.2",
     "canvas": "^2.11.2",
     "qrcode": "^1.5.3",
-    "avif2png": "^1.0.0"
+    "avif-to-png": "^1.0.0"
   },
   "engines": {
     "node": "18.x"
