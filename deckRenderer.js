@@ -5,20 +5,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
-import { readFileSync } from 'fs';
-import { decode } from '@jsquash/avif';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-let wasmBytes = null;
-try {
-  const wasmPath = path.join(__dirname, 'node_modules', '@jsquash', 'avif', 'codec', 'dec', 'avif_dec.wasm');
-  wasmBytes = readFileSync(wasmPath);
-  console.log('✅ 成功加载 AVIF WASM 解码器 (本地二进制加载)');
-} catch (e) {
-  console.error('❌ 未找到 AVIF WASM 文件，请确认 node_modules 安装完整', e);
-}
 
 // 注册字体
 try {
@@ -89,6 +78,7 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
+// 终极颜色校正方案：手工交换 R 和 B 通道（修复蓝变绿、红变紫）
 async function loadImageWithSharp(url) {
   try {
     const response = await fetch(url);
@@ -96,21 +86,41 @@ async function loadImageWithSharp(url) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    
-    const imageData = await decode(new Uint8Array(arrayBuffer), {
-      wasmBinary: wasmBytes
-    });
+    const buffer = Buffer.from(arrayBuffer);
 
-    const { default: sharp } = await import('sharp');
-    const pngBuffer = await sharp(Buffer.from(imageData.data), {
+    // 1. 用 sharp 尝试解码（不管颜色对不对，先把像素数据取出来）
+    // 强制限制输入像素，防止大图抛出异常
+    const { data, info } = await sharp(buffer, { 
+      limitInputPixels: false 
+    })
+    .raw()  // 获取原始的 RGBA 字节流
+    .toBuffer({ resolveWithObject: true });
+
+    // 2. ✨ 核心修复：手动遍历像素，交换红色和蓝色通道
+    // 你看到的“深蓝变绿、红褐变紫”是因为 R 和 B 错位了
+    const pixelCount = data.length / 4;
+    for (let i = 0; i < pixelCount; i++) {
+      const offset = i * 4;
+      const r = data[offset];     // 红色
+      const b = data[offset + 2]; // 蓝色
+      // 交换它们
+      data[offset] = b; 
+      data[offset + 2] = r;
+      // G(绿色) 和 A(透明) 保持不变
+    }
+
+    // 3. 把修复好颜色的纯 RGBA 数据，重新打包成 PNG 格式
+    const pngBuffer = await sharp(data, {
       raw: {
-        width: imageData.width,
-        height: imageData.height,
+        width: info.width,
+        height: info.height,
         channels: 4
       }
     })
     .png()
     .toBuffer();
+
+    // 4. 交给 canvas 加载（此时颜色已经完美归一）
     return await loadImage(pngBuffer);
 
   } catch (error) {
