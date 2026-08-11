@@ -540,6 +540,7 @@ async function generateDeckImageWithOptions(
   {
     cols = 10,
     quality = 20,
+    scale = 100,
     lang = 'zh-Hans',
     addStatsCard = true,
     bgColor = '#ffffff',
@@ -559,7 +560,7 @@ async function generateDeckImageWithOptions(
   const hasValid = cardsWithVersion.some(item => item !== null);
   if (!hasValid) throw new Error("没有有效卡片");
 
-  const scaleFactor = Math.max(0.3, Math.min(1, quality / 20));
+  const scaleFactor = scale / 100;
   const cardW = Math.floor(500 * scaleFactor);
   const cardH = Math.floor(702 * scaleFactor);
   const radius = Math.max(2, Math.floor(15 * scaleFactor));
@@ -923,8 +924,9 @@ export async function generateDeckImage(deckCode, options = {}) {
   const version = options.version || DEFAULT_VERSION;
   const cols = options.cols || 10;
   const quality = options.quality || 20;
+  const scale = options.scale || 100;
   const lang = options.lang || 'zh-Hans';
-  const bgColor = options.bgColor || '#ffffff';
+  const bgColor = options.bgColor || 'transparent';
   const addStatsCard = options.addStatsCard !== undefined ? options.addStatsCard : true;
   const foldEnabled = options.foldEnabled !== undefined ? options.foldEnabled : false;
   const qrEnabled = options.qrEnabled !== undefined ? options.qrEnabled : false;
@@ -1003,6 +1005,7 @@ export async function generateDeckImage(deckCode, options = {}) {
     {
       cols,
       quality,
+      scale,
       lang,
       addStatsCard,
       bgColor,
