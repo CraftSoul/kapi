@@ -5,9 +5,21 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
+import Jimp from 'jimp';
+import { decode } from '@jsquash/avif';
+import { readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let wasmBinary = null;
+try {
+  const wasmPath = path.join(__dirname, 'node_modules', '@jsquash', 'avif', 'codec', 'dec', 'avif_dec.wasm');
+  wasmBinary = readFileSync(wasmPath);
+  console.log('✅ AVIF WASM 解码器已同步加载到内存');
+} catch (e) {
+  console.error('❌ 无法读取 AVIF WASM 文件，请检查 node_modules', e);
+}
 
 // 注册字体
 try {
@@ -85,47 +97,18 @@ async function loadImageWithSharp(url) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const uint8Array = new Uint8Array(arrayBuffer);
 
-    // 1. 导入 sharp (由于不涉及解码，只用来做内存合并，非常安全)
-    const sharp = (await import('sharp')).default;
-    
-    // 2. 用 sharp 直接读取二进制，强制阻止任何色彩转换 (failOnError: false)
-    // 提取出原始像素数组，这一步在底层不会触发 WASM 或缺失的系统库报错
-    const { data, info } = await sharp(buffer, { 
-      limitInputPixels: false,
-      failOnError: false,
-      // 即使格式报错，只要 raw 能提取像素我们就继续
-    })
-    .raw() // 获取未经色彩转换的 RGBA 原生流
-    .toBuffer({ resolveWithObject: true });
+    const imageData = await decode(uint8Array, { wasmBinary });
 
-    // 3. ✨ 核心魔法：既然系统把颜色反转了，我们就手工把它换回来！
-    // 你现象中的“蓝变绿、红变紫”正是典型的 RGB ↔ BGR 错位。
-    const pixelCount = data.length / 4;
-    for (let i = 0; i < pixelCount; i++) {
-      const offset = i * 4;
-      // 交换红色 (R) 和蓝色 (B) 通道
-      const r = data[offset];
-      const b = data[offset + 2];
-      data[offset] = b;
-      data[offset + 2] = r;
-      // 绿色(G) 和 透明度(A) 保持不变
-    }
+    const image = await Jimp.create({
+      data: Buffer.from(imageData.data),
+      width: imageData.width,
+      height: imageData.height
+    });
 
-    // 4. 把纠正过颜色的正确 RGBA 数据，重新打包成标准的 PNG Buffer
-    // 这一步又绕开了 AVIF 解码库，因为我们现在处理的是内存里的纯像素
-    const pngBuffer = await sharp(data, {
-      raw: {
-        width: info.width,
-        height: info.height,
-        channels: 4
-      }
-    })
-    .png()
-    .toBuffer();
+    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
 
-    // 5. 喂给 canvas，此时颜色绝对原生、正确！
     return await loadImage(pngBuffer);
 
   } catch (error) {
