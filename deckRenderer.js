@@ -4,6 +4,7 @@ import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,19 +74,42 @@ async function preloadFactionIcons() {
 }
 
 // ---------- 工具函数 ----------
-function getCardImageUrl(imgName, lang, version, quality = 20) {
+function getCardImageUrl(imgName, lang, version) {
   if (!imgName) return "";
   const ver = version || DEFAULT_VERSION;
   // 直接从官网获取 avif 图片
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
+// 使用 sharp 加载图片（支持 AVIF）
+async function loadImageWithSharp(url) {
+  try {
+    // 下载图片
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // 使用 sharp 解码，然后转换为 PNG Buffer
+    const pngBuffer = await sharp(buffer)
+      .png()
+      .toBuffer();
+    
+    // 使用 canvas 的 loadImage 加载 PNG
+    return await loadImage(pngBuffer);
+  } catch (error) {
+    throw new Error(`加载图片失败: ${error.message}`);
+  }
+}
+
 async function probeImageExists(imgName, lang, version) {
   if (!imgName) return false;
   const url = getCardImageUrl(imgName, lang, version);
   try {
-    const img = await loadImage(url);
-    return true;
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
   } catch {
     return false;
   }
@@ -477,7 +501,7 @@ async function generateDeckImageWithOptions(
   const hasValid = cardsWithVersion.some(item => item !== null);
   if (!hasValid) throw new Error("没有有效卡片");
 
-  const scaleFactor = Math.max(0.3, Math.min(1, quality / 20));
+  const scaleFactor = quality / 100;
   const cardW = Math.floor(500 * scaleFactor);
   const cardH = Math.floor(702 * scaleFactor);
   const radius = Math.max(2, Math.floor(15 * scaleFactor));
@@ -577,7 +601,8 @@ async function generateDeckImageWithOptions(
           ver = DEFAULT_VERSION;
         }
         const imgUrl = getCardImageUrl(card.image, lang, ver);
-        img = await loadImage(imgUrl);
+        // 使用 sharp 加载图片（支持 AVIF）
+        img = await loadImageWithSharp(imgUrl);
       }
 
       // 绘制卡片（无裁剪，直接绘制全图）
