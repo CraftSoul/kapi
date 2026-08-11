@@ -4,11 +4,24 @@ import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import sharp from 'sharp';
+import Jimp from 'jimp';
+import { decode } from '@jsquash/avif';
+import { readFileSync } from 'fs';
 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 加载内置 AVIF WASM 文件，避免使用 fetch 触发 Node 18 崩溃
+// 注意：需要确认 node_modules/@jsquash/avif/codec/dec/avif_dec.wasm 存在
+const WASM_PATH = path.join(__dirname, 'node_modules', '@jsquash', 'avif', 'codec', 'dec', 'avif_dec.wasm');
+let wasmBinary = null;
+try {
+  wasmBinary = readFileSync(WASM_PATH);
+  console.log('✅ AVIF WASM 加载成功，内置到内存');
+} catch (e) {
+  console.warn('⚠️ 无法读取 WASM 文件，可能需要执行 `npm install` 确保包完整');
+}
 
 // 注册字体
 try {
@@ -86,13 +99,20 @@ async function loadImageWithSharp(url) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     
-    const pngBuffer = await sharp(buffer, { limitInputPixels: false })
-      .png()
-      .toBuffer();
+    const imageData = await decode(new Uint8Array(arrayBuffer), {
+      wasmBinary: wasmBinary
+    });
     
+    const image = await Jimp.create({
+      data: Buffer.from(imageData.data),
+      width: imageData.width,
+      height: imageData.height
+    });
+    
+    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
     return await loadImage(pngBuffer);
+    
   } catch (error) {
     console.error('加载图片失败:', error);
     throw new Error(`加载图片失败: ${error.message}`);
