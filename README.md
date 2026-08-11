@@ -65,7 +65,7 @@ Content-Type: application/json
 | version | string | `DEFAULT_VERSION` | 卡牌版本 |
 | cols | number | 10 | 每行卡牌数量 |
 | quality | number | 20 | 图片质量(1-100) |
-| scale | number | 100 | 缩放比例(%) |
+| scale | number | 100 | 缩放比例(25-100) |
 | lang | string | zh-Hans | 语言代码 |
 | bgColor| string | transparent | 背景颜色(十六进制颜色码) |
 | addStatsCard | boolean | true | 统计卡 |
