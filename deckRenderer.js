@@ -78,7 +78,7 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 sharp 加载图片（支持 AVIF）- 最稳定方案
+// 使用 sharp 加载图片
 async function loadImageWithSharp(url) {
   try {
     // 下载图片
@@ -89,19 +89,66 @@ async function loadImageWithSharp(url) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // 先转为 JPEG（丢弃 alpha），再转为 PNG
-    // 这样可以避免 alpha 通道处理问题
-    const jpegBuffer = await sharp(buffer)
-      .jpeg({
-        quality: 100,
-        force: true
-      })
+    // 使用 sharp 以原始格式读取，然后手动处理颜色
+    const image = sharp(buffer, {
+      failOnError: false,
+      limitInputPixels: false
+    });
+    
+    // 获取元数据
+    const metadata = await image.metadata();
+    
+    // 提取原始 RGBA 数据
+    const rawData = await image
+      .raw()
       .toBuffer();
     
-    // 将 JPEG 转为 PNG 以便 canvas 使用
-    const pngBuffer = await sharp(jpegBuffer)
-      .png()
-      .toBuffer();
+    const { width, height, channels } = metadata;
+    
+    // 确保输出为 RGBA (4通道)
+    let rgbaBuffer;
+    if (channels === 4) {
+      // 已经是 RGBA，直接使用
+      rgbaBuffer = rawData;
+    } else if (channels === 3) {
+      // RGB，添加 alpha 通道
+      rgbaBuffer = Buffer.alloc(width * height * 4);
+      for (let i = 0; i < width * height; i++) {
+        const idx = i * 3;
+        const rgbaIdx = i * 4;
+        rgbaBuffer[rgbaIdx] = rawData[idx];
+        rgbaBuffer[rgbaIdx + 1] = rawData[idx + 1];
+        rgbaBuffer[rgbaIdx + 2] = rawData[idx + 2];
+        rgbaBuffer[rgbaIdx + 3] = 255;
+      }
+    } else if (channels === 1) {
+      // 灰度，转换为 RGBA
+      rgbaBuffer = Buffer.alloc(width * height * 4);
+      for (let i = 0; i < width * height; i++) {
+        const rgbaIdx = i * 4;
+        rgbaBuffer[rgbaIdx] = rawData[i];
+        rgbaBuffer[rgbaIdx + 1] = rawData[i];
+        rgbaBuffer[rgbaIdx + 2] = rawData[i];
+        rgbaBuffer[rgbaIdx + 3] = 255;
+      }
+    } else {
+      throw new Error(`不支持的通道数: ${channels}`);
+    }
+    
+    // 使用 raw 数据创建新的 PNG
+    const pngBuffer = await sharp(rgbaBuffer, {
+      raw: {
+        width: width,
+        height: height,
+        channels: 4
+      }
+    })
+    .png({
+      compressionLevel: 6,
+      // 不进行自适应过滤，保持简单
+      adaptiveFiltering: false
+    })
+    .toBuffer();
     
     // 使用 canvas 的 loadImage 加载 PNG
     return await loadImage(pngBuffer);
