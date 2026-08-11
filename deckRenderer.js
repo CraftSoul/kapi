@@ -4,7 +4,6 @@ import { allCards, cardIndex, parentOfMap, veteranMap, becomesVeteranMap } from 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { decode } from '@jsquash/avif';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,35 +77,16 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 使用 WASM 纯 JS 解码 AVIF
 async function loadImageWithSharp(url) {
   try {
-    // 下载图片
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     
-    const imageData = await decode(arrayBuffer);
-    
-    // 将原始的 RGBA 像素数据打包成 PNG Buffer
-    const sharp = (await import('sharp')).default;
-    const pngBuffer = await sharp(Buffer.from(imageData.data), {
-      raw: {
-        width: imageData.width,
-        height: imageData.height,
-        channels: 4
-      }
-    })
-    .png({
-      compressionLevel: 6,
-      adaptiveFiltering: false
-    })
-    .toBuffer();
-    
-    return await loadImage(pngBuffer);
-    
+    return await loadImage(buffer);
   } catch (error) {
     console.error('加载图片失败:', error);
     throw new Error(`加载图片失败: ${error.message}`);
