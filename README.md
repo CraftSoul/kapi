@@ -64,7 +64,6 @@ Content-Type: application/json
 | deckCode | string | - | 必填，KARDS卡组代码 |
 | version | string | `DEFAULT_VERSION` | 卡牌版本 |
 | cols | number | 10 | 每行卡牌数量 |
-| quality | number | 20 | 图片质量(1-100) |
 | scale | number | 100 | 缩放比例(25-100) |
 | lang | string | zh-Hans | 语言代码 |
 | bgColor| string | transparent | 背景颜色(十六进制颜色码) |
@@ -198,12 +197,32 @@ with open('deck.png', 'wb') as f:
 └── ...
 ```
 
+## 跨域Weserv代理版
+
+使用`wsrv.nl`代理卡图避免跨域问题，如果服务器在国内。
+
+### 文件替换
+
+使用`weserv`目录下的文件替换：
+```
+├── deckRenderer.js
+├── package.json
+└── render.yaml
+```
+
+### 额外参数
+
+| 参数 | 类型 | 默认值 | 描述 |
+| --- | --- | --- | --- |
+| quality | number | 20 | 图片质量(1-100) |
+
+控制Weserv的画质参数
+
 ## 注意事项
 
 1. 卡牌数据：需同步更新`data.json`
 2. 阵营图标：`{faction}.svg` 文件
-3. 图片缓存：使用 `weserv.nl` 代理卡牌图片，若无跨域和色差问题可直接使用官网avif图片
-4. 部署环境：本API使用 Render 免费计划，启动速度快如故障机器人
+3. 部署环境：本API使用 Render 免费计划，启动速度快如故障机器人
 
 ## 许可
 
