@@ -40,8 +40,6 @@ const allNationOptions = ["germany", "britain", "japan", "soviet", "usa", "franc
 // 阵营 SVG 图标缓存
 const factionIconCache = new Map();
 
-let cropTemplate = null;
-
 // ---------- 加载阵营图标 ----------
 async function loadFactionIcon(factionKey) {
   if (factionIconCache.has(factionKey)) {
@@ -75,15 +73,15 @@ async function preloadFactionIcons() {
 }
 
 // ---------- 工具函数 ----------
-function getCardImageUrl(imgName, lang, version, quality = 20) {
+function getCardImageUrl(imgName, lang, version) {
   if (!imgName) return "";
   const ver = version || DEFAULT_VERSION;
-  return `https://images.weserv.nl/?url=ssl:www.kards.com/images/card/${ver}/${lang}/${imgName}&q=${quality}`;
+  return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
 async function probeImageExists(imgName, lang, version) {
   if (!imgName) return false;
-  const url = getCardImageUrl(imgName, lang, version, 1);
+  const url = getCardImageUrl(imgName, lang, version);
   try {
     const img = await loadImage(url);
     return true;
@@ -118,87 +116,6 @@ function getEffectiveSet(card, visited = new Set()) {
     return "Special";
   }
   return card.setName;
-}
-
-// ---------- 裁剪模板生成 ----------
-function isDarkPixel(data, x, y, width, threshold) {
-  const idx = (y * width + x) * 4;
-  const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-  return Math.max(r, g, b) <= threshold;
-}
-
-function buildCropTemplateFromImageData(imgData, width, height, threshold = 50) {
-  const visited = new Uint8Array(width * height);
-  const queue = [];
-  const corners = [[0,0],[width-1,0],[0,height-1],[width-1,height-1]];
-  for (const [cx, cy] of corners) {
-    const idx = cy * width + cx;
-    if (!visited[idx] && isDarkPixel(imgData.data, cx, cy, width, threshold)) {
-      visited[idx] = 1;
-      queue.push([cx, cy]);
-    }
-  }
-  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-  while (queue.length) {
-    const [x, y] = queue.shift();
-    for (const [dx, dy] of dirs) {
-      const nx = x + dx, ny = y + dy;
-      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-        const nidx = ny * width + nx;
-        if (!visited[nidx] && isDarkPixel(imgData.data, nx, ny, width, threshold)) {
-          visited[nidx] = 1;
-          queue.push([nx, ny]);
-        }
-      }
-    }
-  }
-  let top = 0, bottom = height - 1, left = 0, right = width - 1;
-  for (let y = 0; y < height; y++) {
-    let hasLight = false;
-    for (let x = 0; x < width; x++) {
-      if (!visited[y * width + x]) { hasLight = true; break; }
-    }
-    if (hasLight) { top = y; break; }
-  }
-  for (let y = height - 1; y >= 0; y--) {
-    let hasLight = false;
-    for (let x = 0; x < width; x++) {
-      if (!visited[y * width + x]) { hasLight = true; break; }
-    }
-    if (hasLight) { bottom = y; break; }
-  }
-  for (let x = 0; x < width; x++) {
-    let hasLight = false;
-    for (let y = 0; y < height; y++) {
-      if (!visited[y * width + x]) { hasLight = true; break; }
-    }
-    if (hasLight) { left = x; break; }
-  }
-  for (let x = width - 1; x >= 0; x--) {
-    let hasLight = false;
-    for (let y = 0; y < height; y++) {
-      if (!visited[y * width + x]) { hasLight = true; break; }
-    }
-    if (hasLight) { right = x; break; }
-  }
-  return { left, top, width: right - left + 1, height: bottom - top + 1 };
-}
-
-async function generateCropTemplate() {
-  if (cropTemplate) return cropTemplate;
-  try {
-    const imgUrl = getCardImageUrl('resistance.avif', 'zh-Hans', DEFAULT_VERSION, 100);
-    const img = await loadImage(imgUrl);
-    const canvas = createCanvas(img.width, img.height);
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    const imgData = ctx.getImageData(0, 0, img.width, img.height);
-    cropTemplate = buildCropTemplateFromImageData(imgData, img.width, img.height, 50);
-    return cropTemplate;
-  } catch (e) {
-    console.warn('裁剪模板生成失败，使用备用', e);
-    return null;
-  }
 }
 
 // ---------- 解析卡组代码 ----------
@@ -539,7 +456,6 @@ async function generateDeckImageWithOptions(
   cardsWithVersion,  // 已排序、已折叠（可选）、含 null（空位）
   {
     cols = 10,
-    quality = 20,
     scale = 100,
     lang = 'zh-Hans',
     addStatsCard = true,
@@ -659,11 +575,11 @@ async function generateDeckImageWithOptions(
         if (!await probeImageExists(card.image, lang, ver)) {
           ver = DEFAULT_VERSION;
         }
-        const imgUrl = getCardImageUrl(card.image, lang, ver, quality);
+        const imgUrl = getCardImageUrl(card.image, lang, ver);
         img = await loadImage(imgUrl);
       }
 
-      // 裁剪绘制
+      // 绘制卡片（直接拉伸，无裁剪）
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(x + radius, y);
@@ -678,46 +594,8 @@ async function generateDeckImageWithOptions(
       ctx.closePath();
       ctx.clip();
 
-      if (cropTemplate && !card.isCustom) {
-        ctx.drawImage(img,
-          cropTemplate.left, cropTemplate.top, cropTemplate.width, cropTemplate.height,
-          x, y, cardW, cardH
-        );
-      } else {
-        if (card.isCustom) {
-          const fit = card.imageFit || 'cover';
-          const imgAspect = img.width / img.height;
-          const cardAspect = cardW / cardH;
-          let sx = 0, sy = 0, sw = img.width, sh = img.height;
-          if (fit === 'cover') {
-            if (imgAspect > cardAspect) {
-              sh = img.height;
-              sw = img.height * cardAspect;
-              sx = (img.width - sw) / 2;
-            } else {
-              sw = img.width;
-              sh = img.width / cardAspect;
-              sy = (img.height - sh) / 2;
-            }
-          } else if (fit === 'contain') {
-            if (imgAspect < cardAspect) {
-              sh = img.height;
-              sw = img.height * cardAspect;
-              sx = (img.width - sw) / 2;
-            } else {
-              sw = img.width;
-              sh = img.width / cardAspect;
-              sy = (img.height - sh) / 2;
-            }
-          } else {
-            sw = img.width;
-            sh = img.height;
-          }
-          ctx.drawImage(img, sx, sy, sw, sh, x, y, cardW, cardH);
-        } else {
-          ctx.drawImage(img, x, y, cardW, cardH);
-        }
-      }
+      // 直接绘制全图
+      ctx.drawImage(img, x, y, cardW, cardH);
       ctx.restore();
 
       // 折叠标记（如果数量 > 1）
@@ -923,7 +801,6 @@ export async function generateDeckImage(deckCode, options = {}) {
   // 选项
   const version = options.version || DEFAULT_VERSION;
   const cols = options.cols || 10;
-  const quality = options.quality || 20;
   const scale = options.scale || 100;
   const lang = options.lang || 'zh-Hans';
   const bgColor = options.bgColor || 'transparent';
@@ -994,17 +871,11 @@ export async function generateDeckImage(deckCode, options = {}) {
     }
   }
 
-  // 生成裁剪模板（若尚未生成）
-  if (!cropTemplate) {
-    await generateCropTemplate();
-  }
-
   // 生成主图
   const mainCanvas = await generateDeckImageWithOptions(
     finalItems,
     {
       cols,
-      quality,
       scale,
       lang,
       addStatsCard,
