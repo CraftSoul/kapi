@@ -31,6 +31,15 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
+// 健康检查端点 - 用于定时唤醒
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.post('/generate', async (req, res) => {
   const { deckCode, ...options } = req.body;
   if (!deckCode) {
