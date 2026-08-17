@@ -26,19 +26,21 @@ npm start
 
 ### 环境要求
 
-· Node.js 18.x
+* Node.js 18.x
 
-· 系统依赖（Render 已自动安装）：
+* 系统依赖:
 
-  · libcairo2-dev
+  * libcairo2-dev
   
-  · libjpeg-dev
+  * libjpeg-dev
   
-  · libpango1.0-dev
+  * libpango1.0-dev
   
-  · libgif-dev
+  * libgif-dev
   
-  · build-essential
+  * build-essential
+  
+  * libvips-dev(Weserv版不需要)
 
 ## API
 
@@ -59,24 +61,33 @@ Content-Type: application/json
 
 ### 请求体
 
+**基础**
 | 参数 | 类型 | 默认值 | 描述 |
-| --- | --- | --- | --- |
-| deckCode | string | - | 必填，KARDS卡组代码 |
-| version | string | `DEFAULT_VERSION` | 卡牌版本 |
+| --- | :---: | :---: | --- |
+| **deckCode** | string | - | **必填**，KARDS卡组代码 |
 | cols | number | 10 | 每行卡牌数量 |
 | scale | number | 100 | 缩放比例(25-100) |
 | lang | string | zh-Hans | 语言代码 |
 | bgColor| string | transparent | 背景颜色(十六进制颜色码) |
-| addStatsCard | boolean | true | 统计卡 |
+
+**附件**
+| 参数 | 类型 | 默认值 | 描述 |
+| --- | :---: | :---: | --- |
 | foldEnabled | boolean | false | 折叠重复卡牌 |
-| qrEnabled | boolean | false | 二维码卡 |
+| addStatsCard | boolean | true | 统计卡 |
 | statsTitle | string | 卡组统计 | 统计卡标题 |
+| qrEnabled | boolean | false | 二维码卡 |
 | qrTitle | string | 卡组二维码 | 二维码卡标题 |
+| hq | string | - | 总部cardId(如`moscow`) |
+| statsChartToggle | boolean | false | 额外统计图 |
+
+**高级**
+| 参数 | 类型 | 默认值 | 描述 |
+| --- | :---: | :---: | --- |
+| version | string | `DEFAULT_VERSION` | 卡牌版本 |
 | spacingX | number | 0 | 水平间距 |
 | spacingY | number | 0 | 垂直间距 |
 | emptySlots | array | [] | 空位索引数组 |
-| hq | string | - | 总部cardId(如`moscow`) |
-| statsChartToggle | boolean | false | 是否生成额外统计图 |
 | cardOverrides | object | {} | 单卡覆盖配置 |
 
 #### `cardOverrides` 格式：
