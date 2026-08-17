@@ -2,6 +2,10 @@
 
 基于 Node.js + Canvas 的 KARDS 卡组图片生成服务，由[KARDS 军械库](https://github.com/CraftSoul/kards-image-tool)提供。
 
+## 声明
+
+本项目遵循1939 Games的 [**"Community content policy"(社区内容政策)**](https://support.kards.com/hc/en-us/articles/360027838532-KARDS-Community-License) ，使用[**1939 Games**](https://www.1939games.com/) 拥有的资产。1939 Games 并未直接支持或赞助本项目。所有卡牌图像版权归 1939 Games 所有，本项目仅作非商业学习与工具用途。
+
 ## 部署
 
 ### Render 一键部署
