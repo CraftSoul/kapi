@@ -70,7 +70,7 @@ Content-Type: application/json
 | --- | :---: | :---: | --- |
 | **deckCode** | string | - | **必填**，KARDS卡组代码 |
 | cols | number | 10 | 每行卡牌数量 |
-| scale | number | 100 | 缩放比例(25-100) |
+| scale | number | 50 | 缩放比例(25-100) |
 | lang | string | zh-Hans | 语言代码 |
 | bgColor| string | transparent | 背景颜色(十六进制颜色码) |
 
