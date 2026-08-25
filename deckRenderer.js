@@ -9,7 +9,40 @@ import sharp from 'sharp';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 注册字体
+// ---------- 有限容量 LRU 缓存 ----------
+class LRUCache {
+  constructor(maxSize) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+
+  get(key) {
+    const val = this.cache.get(key);
+    if (val !== undefined) {
+      // 刷新位置：删除再插入，使其成为最新
+      this.cache.delete(key);
+      this.cache.set(key, val);
+    }
+    return val;
+  }
+
+  set(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      // 删除最老的条目（Map 的迭代顺序即插入顺序）
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, value);
+  }
+
+  has(key) {
+    return this.cache.has(key);
+  }
+}
+
+// ---------- 注册字体 ----------
 try {
   const fontPath = path.join(__dirname, 'font.ttf');
   if (fs.existsSync(fontPath)) {
@@ -24,7 +57,7 @@ try {
 
 const FONT_FAMILY = '"CustomFont", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
-// ---------- 常量定义 ----------
+// ---------- 常量 ----------
 const VERSION = 52;
 const DEFAULT_VERSION = `v${VERSION}`;
 const factionNames = {
@@ -38,10 +71,10 @@ const factionColor = {
 };
 const allNationOptions = ["germany", "britain", "japan", "soviet", "usa", "france", "italy", "poland", "finland", "anzac"];
 
-// 阵营 SVG 图标缓存
+// 阵营 SVG 图标缓存（数量固定，无需限制）
 const factionIconCache = new Map();
-// 图片 Buffer 缓存 (key: url)
-const imageBufferCache = new Map();
+// 图片 Buffer 缓存（限制容量）
+const imageBufferCache = new LRUCache(200);
 
 // ---------- 加载阵营图标 ----------
 async function loadFactionIcon(factionKey) {
@@ -66,7 +99,6 @@ async function loadFactionIcon(factionKey) {
   }
 }
 
-// ---------- 预加载所有阵营图标 ----------
 async function preloadFactionIcons() {
   const promises = allNationOptions.map(key => loadFactionIcon(key));
   await Promise.all(promises);
@@ -80,11 +112,10 @@ function getCardImageUrl(imgName, lang, version) {
   return `https://www.kards.com/images/card/${ver}/${lang}/${imgName}`;
 }
 
-// 下载 AVIF 并转换为 PNG Buffer
+// 下载 AVIF 并转换为 PNG Buffer（使用 LRU 缓存）
 async function loadCardImageBuffer(imgName, lang, version) {
   if (!imgName) return null;
   const url = getCardImageUrl(imgName, lang, version);
-  // 检查缓存
   if (imageBufferCache.has(url)) {
     return imageBufferCache.get(url);
   }
@@ -93,7 +124,6 @@ async function loadCardImageBuffer(imgName, lang, version) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    // 使用 sharp 转换为 PNG
     const pngBuffer = await sharp(buffer).png().toBuffer();
     imageBufferCache.set(url, pngBuffer);
     return pngBuffer;
@@ -577,7 +607,6 @@ async function generateDeckImageWithOptions(
       if (card.isCustom && card.imageData) {
         img = await loadImage(card.imageData);
       } else {
-        // 尝试加载图片，若失败则回退默认版本
         let pngBuffer = await loadCardImageBuffer(card.image, lang, ver);
         if (!pngBuffer) {
           ver = DEFAULT_VERSION;
@@ -616,6 +645,10 @@ async function generateDeckImageWithOptions(
       slotIndex++;
     }
   }
+
+  // 帮助 GC 释放引用
+  ctx.canvas = null;
+  // 注意：无法直接删除 canvas，但将其引用置空有助于 GC
 
   return canvas;
 }
@@ -782,6 +815,8 @@ async function generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCos
     }
   }
 
+  // 帮助 GC
+  ctx.canvas = null;
   return canvas;
 }
 
@@ -889,7 +924,14 @@ export async function generateDeckImage(deckCode, options = {}) {
     const statsCanvas = await generateStatsChartCanvas(deckMap, mainNation, allyNation, cardCostMap);
     const statsBuffer = statsCanvas.toBuffer('image/png');
     statsChartBase64 = statsBuffer.toString('base64');
+    // 释放统计图 canvas
+    statsCanvas.width = 0;
+    statsCanvas.height = 0;
   }
+
+  // 释放主 canvas
+  mainCanvas.width = 0;
+  mainCanvas.height = 0;
 
   return {
     mainImage: `data:image/png;base64,${mainBase64}`,

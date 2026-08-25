@@ -4,7 +4,6 @@ import { registerFont } from 'canvas';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// 定义 __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -18,7 +17,39 @@ try {
 
 const app = express();
 
-// 启用 CORS
+// ---------- 并发控制（信号量） ----------
+class Semaphore {
+  constructor(max) {
+    this.max = max;
+    this.count = 0;
+    this.queue = [];
+  }
+
+  acquire() {
+    return new Promise((resolve) => {
+      if (this.count < this.max) {
+        this.count++;
+        resolve();
+      } else {
+        this.queue.push(resolve);
+      }
+    });
+  }
+
+  release() {
+    if (this.queue.length > 0) {
+      const resolve = this.queue.shift();
+      resolve();
+    } else {
+      this.count--;
+    }
+  }
+}
+
+// 最大并发数设为 3（可根据内存情况调整）
+const sem = new Semaphore(3);
+
+// ---------- 中间件 ----------
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -31,10 +62,10 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
-// 健康检查端点 - 用于定时唤醒
+// 健康检查
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok', 
+  res.status(200).json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
@@ -46,12 +77,17 @@ app.post('/generate', async (req, res) => {
     return res.status(400).json({ error: 'Missing deckCode' });
   }
 
+  // 获取信号量，限制并发
+  await sem.acquire();
+
   try {
     const result = await generateDeckImage(deckCode, options);
     res.json(result);
   } catch (err) {
     console.error('生成失败:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    sem.release();
   }
 });
 
