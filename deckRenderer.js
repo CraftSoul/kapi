@@ -496,7 +496,7 @@ async function generateDeckImageWithOptions(
   cardsWithVersion,
   {
     cols = 10,
-    scale = 100,
+    scale = 50,
     lang = 'zh-Hans',
     addStatsCard = true,
     bgColor = '#ffffff',
@@ -832,7 +832,7 @@ export async function generateDeckImage(deckCode, options = {}) {
 
   const version = options.version || DEFAULT_VERSION;
   const cols = options.cols || 10;
-  const scale = options.scale || 100;
+  const scale = options.scale || 50;
   const lang = options.lang || 'zh-Hans';
   const bgColor = options.bgColor || 'transparent';
   const addStatsCard = options.addStatsCard !== undefined ? options.addStatsCard : true;
