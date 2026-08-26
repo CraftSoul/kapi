@@ -353,7 +353,7 @@ async function drawStatsCard(ctx, x, y, w, h, radius, customTitle, mainNation, a
     ctx.fillRect(x + w * 0.05, startY - iconSize * 0.7, iconSize, iconSize);
   }
   ctx.fillStyle = factionColor[mainNation] || "#c9aa5b";
-  ctx.fillText(`${factionNames[mainNation]}: ${mainCount}`, x + w * 0.05 + iconSize + 5, startY + 2);
+  ctx.fillText(`${factionNames[mainNation].slice(0,2)}: ${mainCount}`, x + w * 0.05 + iconSize + 5, startY + 2);
 
   // 绘制盟国图标和文字
   if (allyIcon) {
