@@ -24,7 +24,7 @@ try {
 const FONT_FAMILY = '"CustomFont", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
 // ---------- 常量定义 ----------
-const VERSION = 52;
+const VERSION = 53;
 const DEFAULT_VERSION = `v${VERSION}`;
 const factionNames = {
   soviet: "苏联", usa: "美国", poland: "波兰", neutral: "中立", japan: "日本",
@@ -187,7 +187,7 @@ function buildCropTemplateFromImageData(imgData, width, height, threshold = 50) 
 async function generateCropTemplate() {
   if (cropTemplate) return cropTemplate;
   try {
-    const imgUrl = getCardImageUrl('resistance.avif', 'zh-Hans', DEFAULT_VERSION, 100);
+    const imgUrl = getCardImageUrl('resistance_b.avif', 'zh-Hans', DEFAULT_VERSION, 100);
     const img = await loadImage(imgUrl);
     const canvas = createCanvas(img.width, img.height);
     const ctx = canvas.getContext('2d');
