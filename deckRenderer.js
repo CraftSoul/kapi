@@ -58,7 +58,7 @@ try {
 const FONT_FAMILY = '"CustomFont", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
 // ---------- 常量 ----------
-const VERSION = 52;
+const VERSION = 53;
 const DEFAULT_VERSION = `v${VERSION}`;
 const factionNames = {
   soviet: "苏联", usa: "美国", poland: "波兰", neutral: "中立", japan: "日本",
