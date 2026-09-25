@@ -79,7 +79,7 @@ Content-Type: application/json
 | emptySlots | array | [] | 空位索引数组 |
 | cardOverrides | object | {} | 单卡覆盖配置 |
 
-#### `cardOverrides` 格式：
+#### `cardOverrides` 格式
 
 ```json
 {
