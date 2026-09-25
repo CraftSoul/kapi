@@ -1,0 +1,3 @@
+mkdir -p netlify/functions
+touch netlify/functions/.gitkeep
+git add netlify/functions/.gitkeep
