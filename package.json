@@ -1,0 +1,15 @@
+{
+  "name": "kards-deck-image-api",
+  "version": "3.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.60",
+    "qrcode": "^1.5.3"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

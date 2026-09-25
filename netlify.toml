@@ -1,0 +1,22 @@
+[build]
+  command = "npm install"
+  publish = "public"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@napi-rs/canvas", "@napi-rs/canvas-*"]
+  included_files = [
+    "netlify/functions/*.ttf",
+    "netlify/functions/*.svg",
+    "netlify/functions/*.json"
+  ]
+
+[build.environment]
+  NODE_VERSION = "18.20.4"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
