@@ -43,10 +43,7 @@ function loadData() {
       isSpawn: j.set === "OnlySpawnable",
       isVeteranSet: j.set === "Special",
       canCreate: j.can_create || [],
-      rawJson: j,
-      isCustom: false,
-      imageData: null,
-      imageFit: 'cover'
+      rawJson: j
     };
   });
 
@@ -143,7 +140,7 @@ function serializeCard(c) {
     operationCost: c.operationCost, attributes: c.attributes,
     setName: c.setName, image: c.image, reserved: c.reserved,
     isSpawn: c.isSpawn, isVeteranSet: c.isVeteranSet,
-    canCreate: c.canCreate, isCustom: c.isCustom
+    canCreate: c.canCreate
   };
 }
 
