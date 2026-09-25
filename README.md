@@ -6,56 +6,41 @@
 
 本项目遵循1939 Games的 [**"Community content policy"(社区内容政策)**](https://support.kards.com/hc/en-us/articles/360027838532-KARDS-Community-License) ，使用[**1939 Games**](https://www.1939games.com/) 拥有的资产。1939 Games 并未直接支持或赞助本项目。所有卡牌图像版权归 1939 Games 所有，本项目仅作非商业学习与工具用途。
 
-## 部署
+## /health 健康检查
 
-### Render 一键部署
+```
+https://karsenal-api.netlify.app/.netlify/functions/health
+```
 
-点击下方按钮部署到 Render：
+方法：`GET`
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+检查土豆是否成熟
 
-### 手动部署
+### 响应格式
 
-1. 克隆仓库
-2. 安装依赖：
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-09-25T11:30:00.000Z",
+  "uptime": 12.34
+}
+```
+
+### 示例
+
 ```bash
-npm install
+curl https://karsenal-api.netlify.app/.netlify/functions/health
 ```
 
-3. 启动服务：
+## /generate 卡组图片生成
 
-```bash
-npm start
+```
+https://karsenal-api.netlify.app/.netlify/functions/generate
 ```
 
-### 环境要求
+方法：`POST`
 
-* Node.js 18.x
-
-* 系统依赖:
-
-  * libcairo2-dev
-  
-  * libjpeg-dev
-  
-  * libpango1.0-dev
-  
-  * libgif-dev
-  
-  * build-essential
-  
-  * libvips-dev(Weserv版不需要)
-
-## API
-
-### 接口
-```
-https://kapi-v7wl.onrender.com/generate
-```
-
-生成卡组图片
-
-端点： POST /generate
+生成KARDS卡组图片
 
 ### 请求头
 
@@ -149,10 +134,10 @@ Content-Type: application/json
 #### cURL
 
 ```bash
-curl -X POST https://your-service.onrender.com/generate \
+curl -X POST https://karsenal-api.netlify.app/.netlify/functions/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "deckCode": "%%15|;;bK;bKbKbKbKbKbKbKbKbK",
+    "deckCode": "%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6",
     "cols": 8,
     "lang": "zh-Hans"
   }'
@@ -163,11 +148,11 @@ curl -X POST https://your-service.onrender.com/generate \
 ```javascript
 import fs from 'fs';
 
-const response = await fetch('https://your-service.onrender.com/generate', {
+const response = await fetch('https://karsenal-api.netlify.app/.netlify/functions/generate', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    deckCode: '%%15|;;bK;bKbKbKbKbKbKbKbKbK',
+    deckCode: '%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6',
     cols: 8,
     lang: 'zh-Hans'
   })
@@ -185,8 +170,8 @@ fs.writeFileSync('deck.png', Buffer.from(base64Data, 'base64'));
 import requests
 import base64
 
-response = requests.post('https://your-service.onrender.com/generate', json={
-    'deckCode': '%%15|;;bK;bKbKbKbKbKbKbKbKbK',
+response = requests.post('https://karsenal-api.netlify.app/.netlify/functions/generate', json={
+    'deckCode': '%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6',
     'cols': 8,
     'lang': 'zh-Hans'
 })
@@ -197,47 +182,97 @@ with open('deck.png', 'wb') as f:
     f.write(base64.b64decode(base64_data))
 ```
 
-## 文件结构
+## /deck-json 卡组JSON
 
 ```
-├── server.js          # 服务入口
-├── deckRenderer.js    # 核心渲染逻辑
-├── cardData.js        # 卡牌数据加载
-├── package.json       # 项目配置
-├── render.yaml        # Render 部署配置
-├── font.ttf           # 中文字体文件
-├── data.json          # 卡牌数据库
-├── germany.svg        # 阵营图标
-├── britain.svg
-└── ...
+https://karsenal-api.netlify.app/.netlify/functions/deck-json
 ```
 
-## 跨域Weserv代理版
+方法：`GET/POST`
 
-使用`wsrv.nl`代理卡图避免跨域问题，如果服务器在国内。
+解析卡组并返回格式化卡牌数据
 
-### 文件替换
+### 请求头
 
-使用`weserv`目录下的文件替换：
 ```
-├── deckRenderer.js
-├── package.json
-└── render.yaml
+Content-Type: application/json
 ```
 
-### 额外参数
+### 请求体
 
 | 参数 | 类型 | 默认值 | 描述 |
 | --- | :---: | :---: | --- |
-| quality | number | 20 | 图片质量(1-100) |
+| deckCode | string | - | KARDS卡组代码 |
 
-控制Weserv的画质参数
+### 示例
 
-## 注意事项
+```bash
+curl -X POST https://karsenal-api.netlify.app/.netlify/functions/deck-json \
+  -H "Content-Type: application/json" \
+  -d '{"deckCode":"%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6"}'
+```
 
-1. 卡牌数据：需同步更新`data.json`
-2. 阵营图标：`{faction}.svg` 文件
-3. 部署环境：本API使用 Render 免费计划，启动速度快如故障机器人
+### 响应格式
+
+```json
+{
+  "mainFaction": "usa",
+  "allyFaction": "anzac",
+  "mainFactionName": "美国",
+  "allyFactionName": "澳新军团",
+  "totalCards": 39,
+  "uniqueCards": 14,
+  "cards": [
+    {
+      "count": 4,
+      "card": {
+        "id": 93750,
+        "cardId": "the_war_machine",
+        "importId": "bK",
+        "titleZh": "战争机器",
+        "titleEn": "THE WAR MACHINE",
+        "text_zh": "额外获得 1 个指挥点槽。",
+        "textMap": {
+          "zh-Hans": "额外获得 1 个指挥点槽。",
+          "zh-Hant": "額外獲得 1 個指揮點槽。",
+          …
+        },
+        "titleMap": {
+          "zh-Hans": "战争机器",
+          "zh-Hant": "戰爭機器",
+          …
+        },
+        "faction": "usa",
+        "type": "order",
+        "rarity": "Standard",
+        "cost": 2,
+        "attributes": [],
+        "setName": "Base",
+        "image": "the_war_machine.avif",
+        "reserved": false,
+        "isSpawn": false,
+        "isVeteranSet": false,
+        "canCreate": []
+      }
+    },
+    …
+  ]
+}
+```
+
+### 示例
+
+```javascript
+const res = await fetch('https://karsenal-api.netlify.app/.netlify/functions/deck-json', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ deckCode: '%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6' })
+});
+const data = await res.json();
+data.cards.forEach(({ count, card }) => {
+  console.log(`${card.titleZh} ×${count}  (${card.cost}K)`);
+});
+```
 
 ## 许可
 
