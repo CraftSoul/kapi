@@ -204,14 +204,6 @@ Content-Type: application/json
 | --- | :---: | :---: | --- |
 | deckCode | string | - | KARDS卡组代码 |
 
-### 示例
-
-```bash
-curl -X POST https://karsenal-api.netlify.app/.netlify/functions/deck-json \
-  -H "Content-Type: application/json" \
-  -d '{"deckCode":"%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6"}'
-```
-
 ### 响应格式
 
 ```json
@@ -262,16 +254,10 @@ curl -X POST https://karsenal-api.netlify.app/.netlify/functions/deck-json \
 
 ### 示例
 
-```javascript
-const res = await fetch('https://karsenal-api.netlify.app/.netlify/functions/deck-json', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ deckCode: '%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6' })
-});
-const data = await res.json();
-data.cards.forEach(({ count, card }) => {
-  console.log(`${card.titleZh} ×${count}  (${card.cost}K)`);
-});
+```bash
+curl -X POST https://karsenal-api.netlify.app/.netlify/functions/deck-json \
+  -H "Content-Type: application/json" \
+  -d '{"deckCode":"%%5a|jvpy;j3xAyc;czydj1bPmI;ggbKpEy6"}'
 ```
 
 ## 许可
