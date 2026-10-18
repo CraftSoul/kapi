@@ -254,7 +254,9 @@ Content-Type: application/json
         "reserved": false,
         "isSpawn": false,
         "isVeteranSet": false,
-        "canCreate": []
+        "canCreate": [],
+        "exile": "",
+        "permanentPool": true
       }
     },
     …
