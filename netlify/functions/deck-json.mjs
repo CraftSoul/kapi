@@ -20,6 +20,7 @@ function loadData() {
   allCards = rawCards.map((raw, idx) => {
     const j = raw.json || {};
     const factionRaw = (j.faction || "").toLowerCase();
+    const exileRaw = (j.exile || "").toLowerCase();
     return {
       id: raw.id ?? idx,
       cardId: j.id || raw.cardId || "",
@@ -43,6 +44,8 @@ function loadData() {
       isSpawn: j.set === "OnlySpawnable",
       isVeteranSet: j.set === "Special",
       canCreate: j.can_create || [],
+      exile: exileRaw,
+      permanentPool: j.permanent_pool === true,
       rawJson: j
     };
   });
@@ -140,7 +143,7 @@ function serializeCard(c) {
     operationCost: c.operationCost, attributes: c.attributes,
     setName: c.setName, image: c.image, reserved: c.reserved,
     isSpawn: c.isSpawn, isVeteranSet: c.isVeteranSet,
-    canCreate: c.canCreate
+    canCreate: c.canCreate, exile: c.exile, permanentPool: c.permanentPool
   };
 }
 
