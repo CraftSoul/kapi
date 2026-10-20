@@ -134,7 +134,7 @@ function ensureFont() {
 ensureFont();
 
 // ==================== 常量 ====================
-const VERSION = 53;
+const VERSION = 54;
 const DEFAULT_VERSION = `v${VERSION}`;
 const factionNames = {
   soviet: "苏联", usa: "美国", poland: "波兰", neutral: "中立", japan: "日本",
