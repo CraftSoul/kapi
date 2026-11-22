@@ -28,7 +28,8 @@ Check if the service is alive.
 {
   "status": "ok",
   "timestamp": "2026-09-25T11:30:00.000Z",
-  "uptime": 12.34
+  "uptime": 12.34,
+  "version": "v54"
 }
 ```
 
@@ -92,7 +93,7 @@ Content-Type: application/json
 ```json
 {
   "cardId": {
-    "version": "v52",
+    "version": "v51",
     "cost": 3,
     "star": true
   }
